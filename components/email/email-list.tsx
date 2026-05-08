@@ -43,7 +43,7 @@ interface EmailListProps {
   onLoadMoreScheduled?: () => void;
   onCancelScheduled?: (email: Email) => void | Promise<void>;
   onCancelScheduledForEdit?: (email: Email) => void | Promise<void>;
-  onRescheduleScheduled?: (email: Email, sendAt: string) => void | Promise<void>;
+  onRescheduleScheduled?: (email: Email, delayedUntil: string) => void | Promise<void>;
 }
 
 export function EmailList({
@@ -235,7 +235,7 @@ export function EmailList({
     }
   }, [client, hasMoreEmails, isLoadingMore, isLoading, isScheduledView, loadMoreEmails, onLoadMoreScheduled]);
 
-  const promptForRescheduleSendAt = useCallback((): string | null => {
+  const promptForRescheduleDelayedUntil = useCallback((): string | null => {
     const value = window.prompt(t('reschedule_prompt'));
     if (!value) return null;
     const time = new Date(value).getTime();
@@ -518,8 +518,8 @@ export function EmailList({
                           size="sm"
                           className="h-7 px-2"
                           onClick={() => {
-                            const sendAt = promptForRescheduleSendAt();
-                            if (sendAt) onRescheduleScheduled?.(thread.latestEmail, sendAt);
+                            const delayedUntil = promptForRescheduleDelayedUntil();
+                            if (delayedUntil) onRescheduleScheduled?.(thread.latestEmail, delayedUntil);
                           }}
                         >
                           <CalendarClock className="w-3.5 h-3.5 mr-1" />
@@ -581,8 +581,8 @@ export function EmailList({
           onCancelScheduled={() => onCancelScheduled?.(contextMenu.data!)}
           onCancelScheduledForEdit={() => onCancelScheduledForEdit?.(contextMenu.data!)}
           onRescheduleScheduled={() => {
-            const sendAt = promptForRescheduleSendAt();
-            if (sendAt) onRescheduleScheduled?.(contextMenu.data!, sendAt);
+            const delayedUntil = promptForRescheduleDelayedUntil();
+            if (delayedUntil) onRescheduleScheduled?.(contextMenu.data!, delayedUntil);
           }}
           onBatchMarkAsRead={(read) => client && batchMarkAsRead(client, read)}
           onBatchDelete={() => client && batchDelete(client)}

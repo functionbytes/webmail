@@ -94,8 +94,8 @@ interface EmailStore {
   loadMoreEmails: (client: IJMAPClient) => Promise<void>;
   fetchEmailContent: (client: IJMAPClient, emailId: string) => Promise<Email | null>;
   fetchQuota: (client: IJMAPClient) => Promise<void>;
-  sendEmail: (client: IJMAPClient, to: string[], subject: string, body: string, cc?: string[], bcc?: string[], identityId?: string, fromEmail?: string, draftId?: string, fromName?: string, htmlBody?: string, attachments?: Array<{ blobId: string; name: string; type: string; size: number; disposition?: 'attachment' | 'inline'; cid?: string }>, inReplyTo?: string[], references?: string[], sendAt?: string) => Promise<SendEmailResult>;
-  sendRawEmail: (client: IJMAPClient, rawMimeBlob: Blob, identityId: string, sendAt?: string) => Promise<SendEmailResult>;
+  sendEmail: (client: IJMAPClient, to: string[], subject: string, body: string, cc?: string[], bcc?: string[], identityId?: string, fromEmail?: string, draftId?: string, fromName?: string, htmlBody?: string, attachments?: Array<{ blobId: string; name: string; type: string; size: number; disposition?: 'attachment' | 'inline'; cid?: string }>, inReplyTo?: string[], references?: string[], delayedUntil?: string) => Promise<SendEmailResult>;
+  sendRawEmail: (client: IJMAPClient, rawMimeBlob: Blob, identityId: string, delayedUntil?: string) => Promise<SendEmailResult>;
   deleteEmail: (client: IJMAPClient, emailId: string, forceDelete?: boolean) => Promise<void>;
   markAsRead: (client: IJMAPClient, emailId: string, read: boolean) => Promise<void>;
   moveToMailbox: (client: IJMAPClient, emailId: string, mailboxId: string) => Promise<void>;
@@ -153,7 +153,7 @@ interface EmailStore {
   loadMoreScheduledEmails: (client: IJMAPClient) => Promise<void>;
   cancelScheduledEmail: (client: IJMAPClient, submissionId: string) => Promise<void>;
   cancelScheduledEmailForEdit: (client: IJMAPClient, email: ScheduledEmail | Email) => Promise<Email | null>;
-  rescheduleScheduledEmail: (client: IJMAPClient, submissionId: string, emailId: string, identityId: string, sendAt: string) => Promise<SendEmailResult>;
+  rescheduleScheduledEmail: (client: IJMAPClient, submissionId: string, emailId: string, identityId: string, delayedUntil: string) => Promise<SendEmailResult>;
   cancelUndoSend: (client: IJMAPClient, pending: PendingUndoSend) => Promise<Email | null>;
   clearPendingUndoSend: () => void;
   refreshScheduledMetadata: (client: IJMAPClient) => Promise<void>;
@@ -219,8 +219,8 @@ function annotateScheduledEmail(
 
 function shouldClearPendingUndoSend(pending: PendingUndoSend | null, scheduledEmails: ScheduledEmail[]): boolean {
   if (!pending) return false;
-  const sendAt = new Date(pending.sendAt).getTime();
-  if (Number.isFinite(sendAt) && sendAt <= Date.now()) return true;
+  const pendingSendTime = new Date(pending.sendAt).getTime();
+  if (Number.isFinite(pendingSendTime) && pendingSendTime <= Date.now()) return true;
   const scheduledEmail = scheduledEmails.find(email => email.emailSubmissionId === pending.submissionId);
   return scheduledEmail?.scheduledUndoStatus !== undefined && scheduledEmail.scheduledUndoStatus !== 'pending';
 }
@@ -607,10 +607,10 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
     }
   },
 
-  sendEmail: async (client, to, subject, body, cc, bcc, identityId, fromEmail, draftId, fromName, htmlBody, attachments, inReplyTo, references, sendAt) => {
+  sendEmail: async (client, to, subject, body, cc, bcc, identityId, fromEmail, draftId, fromName, htmlBody, attachments, inReplyTo, references, delayedUntil) => {
     set({ isLoading: true, error: null });
     try {
-      const result = await client.sendEmail(to, subject, body, cc, bcc, identityId, fromEmail, draftId, fromName, htmlBody, attachments, inReplyTo, references, sendAt);
+      const result = await client.sendEmail(to, subject, body, cc, bcc, identityId, fromEmail, draftId, fromName, htmlBody, attachments, inReplyTo, references, delayedUntil);
       // Refresh handled by UI layer for immediate feedback
       set({
         isLoading: false,
@@ -628,14 +628,14 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
     }
   },
 
-  sendRawEmail: async (client, rawMimeBlob, identityId, sendAt) => {
+  sendRawEmail: async (client, rawMimeBlob, identityId, delayedUntil) => {
     set({ isLoading: true, error: null });
     try {
       const mailboxes = await client.getMailboxes();
       const sentMailbox = mailboxes.find(mb => mb.role === 'sent');
       if (!sentMailbox) throw new Error('No sent mailbox found');
       const draftsMailbox = mailboxes.find(mb => mb.role === 'drafts');
-      const result = await client.sendRawEmail(rawMimeBlob, identityId, sentMailbox.id, draftsMailbox?.id, sendAt);
+      const result = await client.sendRawEmail(rawMimeBlob, identityId, sentMailbox.id, draftsMailbox?.id, delayedUntil);
       set({
         isLoading: false,
         pendingUndoSend: result.scheduled && result.emailSubmissionId && result.sendAt
@@ -2152,12 +2152,12 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
     return restored;
   },
 
-  rescheduleScheduledEmail: async (client, submissionId, emailId, identityId, sendAt) => {
+  rescheduleScheduledEmail: async (client, submissionId, emailId, identityId, delayedUntil) => {
     try {
-      const result = await client.rescheduleEmailSubmission(submissionId, emailId, identityId, sendAt);
+      const result = await client.rescheduleEmailSubmission(submissionId, emailId, identityId, delayedUntil);
       const pendingUndoSend = get().pendingUndoSend;
       if (pendingUndoSend?.submissionId === submissionId) {
-        set({ pendingUndoSend: { ...pendingUndoSend, sendAt } });
+        set({ pendingUndoSend: { ...pendingUndoSend, sendAt: result.sendAt || delayedUntil } });
       }
       return result;
     } finally {

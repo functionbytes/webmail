@@ -121,7 +121,7 @@ interface EmailViewerProps {
   onEditDraft?: () => void;
   onCancelScheduled?: () => void;
   onCancelScheduledForEdit?: () => void;
-  onRescheduleScheduled?: (sendAt: string) => void;
+  onRescheduleScheduled?: (delayedUntil: string) => void;
   onCompose?: () => void;
   currentUserEmail?: string;
   currentUserName?: string;
@@ -883,7 +883,7 @@ export function EmailViewer({
   const { isTablet, isMobile } = useDeviceDetection();
   const { tabletListVisible } = useUIStore();
   const { identities, client, isDemoMode, activeAccountId } = useAuthStore();
-  const promptForRescheduleSendAt = useCallback((): string | null => {
+  const promptForRescheduleDelayedUntil = useCallback((): string | null => {
     const value = window.prompt(t('reschedule_prompt'));
     if (!value) return null;
     const time = new Date(value).getTime();
@@ -3147,8 +3147,8 @@ export function EmailViewer({
               variant="ghost"
               size="sm"
               onClick={() => {
-                const sendAt = promptForRescheduleSendAt();
-                if (sendAt) onRescheduleScheduled?.(sendAt);
+                const delayedUntil = promptForRescheduleDelayedUntil();
+                if (delayedUntil) onRescheduleScheduled?.(delayedUntil);
               }}
               className="hidden sm:flex sm:h-8"
               title={t('reschedule_send')}
@@ -4598,8 +4598,8 @@ export function EmailViewer({
                   size="sm"
                   variant="outline"
                   onClick={() => {
-                    const sendAt = promptForRescheduleSendAt();
-                    if (sendAt) onRescheduleScheduled?.(sendAt);
+                    const delayedUntil = promptForRescheduleDelayedUntil();
+                    if (delayedUntil) onRescheduleScheduled?.(delayedUntil);
                   }}
                 >
                   {t('reschedule_send')}

@@ -148,13 +148,13 @@ export interface IJMAPClient {
     attachments?: Array<{ blobId: string; name: string; type: string; size: number; disposition?: 'attachment' | 'inline'; cid?: string }>,
     inReplyTo?: string[],
     references?: string[],
-    sendAt?: string,
+    delayedUntil?: string,
   ): Promise<SendEmailResult>;
 
-  sendRawEmail(blob: Blob, identityId: string, sentMailboxId: string, draftMailboxId?: string, sendAt?: string): Promise<SendEmailResult>;
+  sendRawEmail(blob: Blob, identityId: string, sentMailboxId: string, draftMailboxId?: string, delayedUntil?: string): Promise<SendEmailResult>;
   getScheduledEmails(limit?: number, position?: number): Promise<{ emails: ScheduledEmail[]; hasMore: boolean; total: number }>;
   cancelEmailSubmission(submissionId: string): Promise<void>;
-  rescheduleEmailSubmission(submissionId: string, emailId: string, identityId: string, sendAt: string): Promise<SendEmailResult>;
+  rescheduleEmailSubmission(submissionId: string, emailId: string, identityId: string, delayedUntil: string): Promise<SendEmailResult>;
   restoreEmailToDraft(emailId: string, draftMailboxId: string, sentMailboxId?: string): Promise<void>;
 
   sendImipReply(opts: {

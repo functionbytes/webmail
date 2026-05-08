@@ -1551,16 +1551,19 @@ function handleThreadGet(args: MethodArgs, callId: string): MethodResult {
 }
 
 function handleEmailSubmissionSet(args: MethodArgs, callId: string): MethodResult {
-  const created: Record<string, { id: string }> = {};
+  const created: Record<string, { id: string; sendAt?: string }> = {};
   const updated: Record<string, null> = {};
-  const create = args.create as Record<string, { emailId?: string; identityId?: string; sendAt?: string }> | undefined;
+  const create = args.create as Record<string, { emailId?: string; identityId?: string; envelope?: { mailFrom?: { parameters?: { HOLDUNTIL?: string } } } }> | undefined;
   if (create) {
     for (const [key, value] of Object.entries(create)) {
       const id = `submission-${Date.now()}-${key}`;
-      created[key] = { id };
-      if (value.sendAt && value.emailId && value.identityId) {
+      const holdUntil = value.envelope?.mailFrom?.parameters?.HOLDUNTIL;
+      const holdUntilTime = holdUntil ? new Date(holdUntil).getTime() : Number.NaN;
+      const delayedUntil = Number.isFinite(holdUntilTime) ? new Date(holdUntilTime).toISOString() : undefined;
+      created[key] = { id, ...(delayedUntil ? { sendAt: delayedUntil } : {}) };
+      if (delayedUntil && value.emailId && value.identityId) {
         const emailId = value.emailId.startsWith('#') ? emails[emails.length - 1]?.id || value.emailId : value.emailId;
-        scheduledSubmissions.push({ id, emailId, identityId: value.identityId, sendAt: value.sendAt, undoStatus: 'pending' });
+        scheduledSubmissions.push({ id, emailId, identityId: value.identityId, sendAt: delayedUntil, undoStatus: 'pending' });
       }
     }
   }

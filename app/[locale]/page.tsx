@@ -630,12 +630,12 @@ export default function Home() {
 
   useEffect(() => {
     if (!pendingUndoSend) return;
-    const sendAt = new Date(pendingUndoSend.sendAt).getTime();
-    if (!Number.isFinite(sendAt) || sendAt <= Date.now()) {
+    const pendingSendTime = new Date(pendingUndoSend.sendAt).getTime();
+    if (!Number.isFinite(pendingSendTime) || pendingSendTime <= Date.now()) {
       clearPendingUndoSend();
       return;
     }
-    const timer = setTimeout(clearPendingUndoSend, sendAt - Date.now());
+    const timer = setTimeout(clearPendingUndoSend, pendingSendTime - Date.now());
     return () => clearTimeout(timer);
   }, [clearPendingUndoSend, pendingUndoSend]);
 
@@ -944,7 +944,7 @@ export default function Home() {
     attachments?: Array<{ blobId: string; name: string; type: string; size: number; disposition?: 'attachment' | 'inline'; cid?: string }>;
     inReplyTo?: string[];
     references?: string[];
-    sendAt?: string;
+    delayedUntil?: string;
   }) => {
     if (!client) return;
 
@@ -952,7 +952,7 @@ export default function Home() {
       const effectiveMode = pendingDraft?.mode ?? composerMode;
       const originalEmailId = selectedEmail?.id;
 
-      const result = await sendEmail(client, data.to, data.subject, data.body, data.cc, data.bcc, data.identityId, data.fromEmail, data.draftId, data.fromName, data.htmlBody, data.attachments, data.inReplyTo, data.references, data.sendAt);
+      const result = await sendEmail(client, data.to, data.subject, data.body, data.cc, data.bcc, data.identityId, data.fromEmail, data.draftId, data.fromName, data.htmlBody, data.attachments, data.inReplyTo, data.references, data.delayedUntil);
       setShowComposer(false);
       if (result.scheduled) {
         await refreshScheduledMetadata(client);
@@ -1703,13 +1703,13 @@ export default function Home() {
 
     const originalEmailId = selectedEmail.id;
     const sendDelaySeconds = useSettingsStore.getState().sendDelaySeconds;
-    let sendAt: string | undefined;
+    let delayedUntil: string | undefined;
     if (sendDelaySeconds > 0) {
       if (!client.hasDelayedSend()) {
         const confirmed = window.confirm(t('email_composer.send_delay_unsupported_confirm'));
         if (!confirmed) return;
       } else {
-        sendAt = new Date(Date.now() + sendDelaySeconds * 1000).toISOString();
+        delayedUntil = new Date(Date.now() + sendDelaySeconds * 1000).toISOString();
       }
     }
 
@@ -1735,7 +1735,7 @@ export default function Home() {
       undefined,
       threading?.inReplyTo,
       threading?.references,
-      sendAt,
+      delayedUntil,
     );
 
     if (result.scheduled) {
@@ -2312,9 +2312,9 @@ export default function Home() {
                   setShowComposer(true);
                   if (isMobile) setActiveView('viewer');
                 }}
-                onRescheduleScheduled={async (email, sendAt) => {
+                onRescheduleScheduled={async (email, delayedUntil) => {
                   if (client && email.emailSubmissionId && email.scheduledIdentityId) {
-                    await rescheduleScheduledEmail(client, email.emailSubmissionId, email.id, email.scheduledIdentityId, sendAt);
+                    await rescheduleScheduledEmail(client, email.emailSubmissionId, email.id, email.scheduledIdentityId, delayedUntil);
                   }
                 }}
                 onEmailSelect={handleEmailSelect}
@@ -2561,9 +2561,9 @@ export default function Home() {
                       }
                       if (restored) await handleEditDraft(restored);
                     }}
-                    onRescheduleScheduled={async (sendAt) => {
+                    onRescheduleScheduled={async (delayedUntil) => {
                       if (client && selectedEmail?.emailSubmissionId && selectedEmail.scheduledIdentityId) {
-                        await rescheduleScheduledEmail(client, selectedEmail.emailSubmissionId, selectedEmail.id, selectedEmail.scheduledIdentityId, sendAt);
+                        await rescheduleScheduledEmail(client, selectedEmail.emailSubmissionId, selectedEmail.id, selectedEmail.scheduledIdentityId, delayedUntil);
                       }
                     }}
                     onCompose={() => {

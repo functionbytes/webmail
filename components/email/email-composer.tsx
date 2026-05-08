@@ -72,7 +72,7 @@ interface EmailComposerProps {
     attachments?: Array<{ blobId: string; name: string; type: string; size: number; disposition?: 'attachment' | 'inline'; cid?: string }>;
     inReplyTo?: string[];
     references?: string[];
-    sendAt?: string;
+    delayedUntil?: string;
   }) => void | Promise<void>;
   onScheduledSendCreated?: () => void | Promise<void>;
   onClose?: () => void;
@@ -876,8 +876,8 @@ export function EmailComposer({
     return null;
   };
 
-  const getEffectiveSendAt = async (explicitSendAt?: string): Promise<string | undefined> => {
-    if (explicitSendAt) return explicitSendAt;
+  const resolveDelayedUntil = async (requestedDelayedUntil?: string): Promise<string | undefined> => {
+    if (requestedDelayedUntil) return requestedDelayedUntil;
     if (sendDelaySeconds === 0) return undefined;
     if (client?.hasDelayedSend()) {
       return new Date(Date.now() + sendDelaySeconds * 1000).toISOString();
@@ -932,7 +932,7 @@ export function EmailComposer({
     };
   };
 
-  const handleSend = async (skipAttachmentCheck = false, sendAt?: string) => {
+  const handleSend = async (skipAttachmentCheck = false, delayedUntil?: string) => {
     const ccAddresses = cc.split(",").map(e => e.trim()).filter(Boolean);
     const bccAddresses = bcc.split(",").map(e => e.trim()).filter(Boolean);
 
@@ -1014,7 +1014,7 @@ export function EmailComposer({
     const inlineAttachments = rewritten?.attachments ?? [];
 
     try {
-      const effectiveSendAt = await getEffectiveSendAt(sendAt);
+      const effectiveDelayedUntil = await resolveDelayedUntil(delayedUntil);
       // Let plugins veto the send (external-mail warning, mistyped-domain
       // guards, etc.). Returning false from any handler aborts before either
       // the S/MIME or standard JMAP path runs.
@@ -1151,8 +1151,8 @@ export function EmailComposer({
         }
 
         // 7. Send via raw email path
-        const result = await sendRawEmail(client, payload, currentIdentity.id, effectiveSendAt);
-        if (effectiveSendAt && finalDraftId) {
+        const result = await sendRawEmail(client, payload, currentIdentity.id, effectiveDelayedUntil);
+        if (effectiveDelayedUntil && finalDraftId) {
           client.deleteEmail(finalDraftId).catch(err => {
             debug.warn('email', 'Scheduled S/MIME send created, but plaintext draft cleanup failed:', err);
             toast.warning(t('schedule_send_cleanup_warning'));
@@ -1199,7 +1199,7 @@ export function EmailComposer({
           attachments: uploadedAttachments.length > 0 ? uploadedAttachments : undefined,
           inReplyTo: threadingHeaders?.inReplyTo,
           references: threadingHeaders?.references,
-          sendAt: effectiveSendAt,
+          delayedUntil: effectiveDelayedUntil,
         });
 
         if (mode === 'reply' || mode === 'replyAll') {
@@ -1700,20 +1700,21 @@ export function EmailComposer({
             >
               <BookmarkPlus className="w-4 h-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => {
-                setScheduleError('');
-                setScheduleValue('');
-                setShowScheduleDialog(true);
-              }}
-              disabled={!client?.hasDelayedSend()}
-              title={client?.hasDelayedSend() ? t('schedule_send') : t('schedule_send_unsupported')}
-              className="h-9 w-9"
-            >
-              <CalendarClock className="w-4 h-4" />
-            </Button>
+            {client?.hasDelayedSend() && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setScheduleError('');
+                  setScheduleValue('');
+                  setShowScheduleDialog(true);
+                }}
+                title={t('schedule_send')}
+                className="h-9 w-9"
+              >
+                <CalendarClock className="w-4 h-4" />
+              </Button>
+            )}
 
             {/* S/MIME toggles */}
             {canSmimeSign && (
