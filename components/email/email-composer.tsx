@@ -1285,6 +1285,40 @@ export function EmailComposer({
     }
   };
 
+  const handleComposerKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.defaultPrevented) return;
+
+    const isPlainEscape = e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey;
+    const isSendShortcut = e.key === 'Enter' && e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey;
+    if (!isPlainEscape && !isSendShortcut) return;
+
+    if (
+      showTemplatePicker ||
+      showSaveAsTemplate ||
+      showScheduleDialog ||
+      smimePassphrasePrompt ||
+      showAttachmentWarning ||
+      showCloseDialog
+    ) return;
+
+    if (isPlainEscape) {
+      if (activeAutoField) return;
+      e.preventDefault();
+      handleClose();
+      return;
+    }
+
+    if (isSendShortcut) {
+      if (e.repeat) {
+        e.preventDefault();
+        return;
+      }
+
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
   return (
     <div className={cn("flex h-full bg-background", className)}>
       <PluginSlot
@@ -1299,6 +1333,7 @@ export function EmailComposer({
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
+      onKeyDown={handleComposerKeyDown}
     >
       {/* Drag overlay */}
       {isDraggingOver && (
