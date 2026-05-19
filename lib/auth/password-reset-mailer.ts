@@ -1,155 +1,232 @@
-import { createConnection, type Socket } from 'node:net';
-import { connect as tlsConnect, type TLSSocket } from 'node:tls';
+import * as net from 'node:net';
+import * as tls from 'node:tls';
+import { logger } from '@/lib/logger';
 
 export interface SmtpConfig {
   host: string;
   port: number;
-  /** true = implicit TLS (port 465); false = plain + STARTTLS (port 587) */
-  secure: boolean;
+  secure: boolean; // true = implicit TLS on connect, false = STARTTLS
   user: string;
   pass: string;
   from: string;
 }
 
-function authPlain(user: string, pass: string): string {
-  // AUTH PLAIN encodes \0user\0pass in base64
-  return Buffer.from(`\0${user}\0${pass}`, 'utf-8').toString('base64');
-}
-
-function escapeMime(str: string): string {
-  return str.replace(/[\r\n]/g, ' ');
-}
-
-/**
- * Minimal SMTP client supporting STARTTLS + AUTH PLAIN.
- * Zero external dependencies — uses Node.js `net` and `tls` only.
- */
-export async function sendPasswordResetEmail(opts: {
+export interface ResetEmailOptions {
   smtp: SmtpConfig;
   toEmail: string;
   username: string;
   resetLink: string;
   appName: string;
-}): Promise<void> {
+}
+
+/** Encode a string for use in an SMTP AUTH PLAIN payload. */
+function authPlainPayload(user: string, pass: string): string {
+  // \0user\0pass
+  return Buffer.from(`\0${user}\0${pass}`).toString('base64');
+}
+
+/** Minimal zero-dependency SMTP send (STARTTLS + AUTH PLAIN). */
+export async function sendPasswordResetEmail(
+  opts: ResetEmailOptions,
+): Promise<void> {
   const { smtp, toEmail, username, resetLink, appName } = opts;
 
-  return new Promise((resolve, reject) => {
-    let socket: Socket | TLSSocket;
-    let buffer = '';
-    const pending: string[] = [];
-    let lineWaiter: ((line: string) => void) | null = null;
+  const subject = `[${appName}] Password Reset Request`;
+  const text = [
+    `Hi ${username},`,
+    '',
+    'You (or someone else) requested a password reset for your account.',
+    'Click the link below within 1 hour to set a new password:',
+    '',
+    resetLink,
+    '',
+    'If you did not request this, you can safely ignore this email.',
+    '',
+    `— ${appName}`,
+  ].join('\r\n');
 
-    function onData(chunk: Buffer | string): void {
-      buffer += chunk.toString();
-      const parts = buffer.split('\r\n');
-      buffer = parts.pop() ?? '';
-      for (const p of parts) {
-        if (p) pending.push(p);
-      }
-      if (lineWaiter && pending.length > 0) {
-        const waiter = lineWaiter;
-        lineWaiter = null;
-        waiter(pending.shift()!);
+  const date = new Date().toUTCString();
+  const msgId = `<${Date.now()}.${Math.random().toString(36).slice(2)}@${smtp.host}>`;
+  const rawMessage = [
+    `Date: ${date}`,
+    `Message-ID: ${msgId}`,
+    `From: ${smtp.from}`,
+    `To: ${toEmail}`,
+    `Subject: ${subject}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=UTF-8',
+    '',
+    text,
+  ].join('\r\n');
+
+  await smtpSend(smtp, smtp.from, [toEmail], rawMessage);
+  logger.info('Password reset email sent', { to: toEmail, username });
+}
+
+// ─── Minimal SMTP implementation ─────────────────────────────────────────────
+
+type SocketLike = net.Socket | tls.TLSSocket;
+
+function readLines(sock: SocketLike): AsyncIterable<string> {
+  let buf = '';
+  const lines: string[] = [];
+  let resolve: ((v: string) => void) | null = null;
+
+  sock.on('data', (chunk: Buffer) => {
+    buf += chunk.toString();
+    const parts = buf.split('\r\n');
+    buf = parts.pop() ?? '';
+    for (const line of parts) {
+      if (resolve) {
+        const r = resolve;
+        resolve = null;
+        r(line);
+      } else {
+        lines.push(line);
       }
     }
+  });
 
-    function nextLine(): Promise<string> {
-      return new Promise((res) => {
-        if (pending.length > 0) {
-          res(pending.shift()!);
+  return {
+    [Symbol.asyncIterator]: () => ({
+      next: (): Promise<IteratorResult<string>> =>
+        new Promise((res) => {
+          const line = lines.shift();
+          if (line !== undefined) {
+            res({ value: line, done: false });
+          } else {
+            resolve = (v) => res({ value: v, done: false });
+          }
+        }),
+    }),
+  };
+}
+
+async function readReply(
+  lines: AsyncIterable<string>,
+): Promise<{ code: number; text: string }> {
+  let lastCode = 0;
+  let text = '';
+  for await (const line of lines) {
+    const m = /^(\d{3})([ -])(.*)$/.exec(line);
+    if (!m) continue;
+    lastCode = parseInt(m[1], 10);
+    text = m[3];
+    if (m[2] === ' ') break; // last line of multi-line reply
+  }
+  return { code: lastCode, text };
+}
+
+async function cmd(
+  sock: SocketLike,
+  lines: AsyncIterable<string>,
+  command: string,
+  expectCode: number,
+): Promise<void> {
+  await new Promise<void>((res, rej) =>
+    sock.write(command + '\r\n', (e) => (e ? rej(e) : res())),
+  );
+  const reply = await readReply(lines);
+  if (reply.code !== expectCode) {
+    throw new Error(`SMTP ${command.split(' ')[0]} failed: ${reply.code} ${reply.text}`);
+  }
+}
+
+async function smtpSend(
+  cfg: SmtpConfig,
+  from: string,
+  to: string[],
+  raw: string,
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const plain = net.createConnection(cfg.port, cfg.host);
+    plain.once('error', reject);
+
+    plain.once('connect', async () => {
+      try {
+        const lines = readLines(plain);
+        // greeting
+        await readReply(lines);
+        // EHLO
+        await cmd(plain, lines, `EHLO ${cfg.host}`, 250);
+
+        let sock: SocketLike = plain;
+
+        if (!cfg.secure) {
+          // STARTTLS upgrade
+          await cmd(plain, lines, 'STARTTLS', 220);
+          sock = await new Promise<tls.TLSSocket>((res, rej) => {
+            const tlsSock = tls.connect(
+              { socket: plain, servername: cfg.host, rejectUnauthorized: true },
+              () => res(tlsSock),
+            );
+            tlsSock.once('error', rej);
+          });
+          const tlsLines = readLines(sock);
+          await cmd(sock, tlsLines, `EHLO ${cfg.host}`, 250);
+          // AUTH PLAIN
+          await cmd(
+            sock,
+            tlsLines,
+            `AUTH PLAIN ${authPlainPayload(cfg.user, cfg.pass)}`,
+            235,
+          );
+          // MAIL / RCPT / DATA
+          await cmd(sock, tlsLines, `MAIL FROM:<${from}>`, 250);
+          for (const addr of to) {
+            await cmd(sock, tlsLines, `RCPT TO:<${addr}>`, 250);
+          }
+          await cmd(sock, tlsLines, 'DATA', 354);
+          await new Promise<void>((res, rej) =>
+            sock.write(`${raw}\r\n.\r\n`, (e) => (e ? rej(e) : res())),
+          );
+          const dataReply = await readReply(tlsLines);
+          if (dataReply.code !== 250) {
+            throw new Error(`SMTP DATA failed: ${dataReply.code} ${dataReply.text}`);
+          }
+          await cmd(sock, tlsLines, 'QUIT', 221);
         } else {
-          lineWaiter = res;
+          // Implicit TLS — wrap right away
+          const tlsSock = tls.connect(
+            { socket: plain, servername: cfg.host, rejectUnauthorized: true },
+            async () => {
+              try {
+                const tlsLines = readLines(tlsSock);
+                await readReply(tlsLines); // greeting
+                await cmd(tlsSock, tlsLines, `EHLO ${cfg.host}`, 250);
+                await cmd(
+                  tlsSock,
+                  tlsLines,
+                  `AUTH PLAIN ${authPlainPayload(cfg.user, cfg.pass)}`,
+                  235,
+                );
+                await cmd(tlsSock, tlsLines, `MAIL FROM:<${from}>`, 250);
+                for (const addr of to) {
+                  await cmd(tlsSock, tlsLines, `RCPT TO:<${addr}>`, 250);
+                }
+                await cmd(tlsSock, tlsLines, 'DATA', 354);
+                await new Promise<void>((res, rej) =>
+                  tlsSock.write(`${raw}\r\n.\r\n`, (e) => (e ? rej(e) : res())),
+                );
+                const dataReply = await readReply(tlsLines);
+                if (dataReply.code !== 250) {
+                  throw new Error(`SMTP DATA failed: ${dataReply.code} ${dataReply.text}`);
+                }
+                await cmd(tlsSock, tlsLines, 'QUIT', 221);
+                resolve();
+              } catch (e) {
+                reject(e);
+              }
+            },
+          );
+          tlsSock.once('error', reject);
+          return;
         }
-      });
-    }
 
-    /** Read a full SMTP response; handles multi-line 250-... / 250 ... */
-    async function readResponse(expectedCode: string): Promise<string> {
-      let full = '';
-      while (true) {
-        const line = await nextLine();
-        full += (full ? '\n' : '') + line;
-        if (line.startsWith(`${expectedCode} `)) break;
-        if (!line.startsWith(`${expectedCode}-`)) {
-          throw new Error(`SMTP error (expected ${expectedCode}): ${line}`);
-        }
+        resolve();
+      } catch (e) {
+        reject(e);
       }
-      return full;
-    }
-
-    function send(cmd: string): void {
-      (socket as Socket).write(`${cmd}\r\n`);
-    }
-
-    async function run(): Promise<void> {
-      await readResponse('220'); // server greeting
-
-      send('EHLO bulwark');
-      const ehloResp = await readResponse('250');
-
-      if (!smtp.secure && ehloResp.includes('STARTTLS')) {
-        send('STARTTLS');
-        await readResponse('220');
-        const plain = socket as Socket;
-        socket = tlsConnect({ socket: plain, host: smtp.host, rejectUnauthorized: true });
-        socket.on('data', onData);
-        await new Promise<void>((res, rej) => {
-          (socket as TLSSocket).once('secureConnect', res);
-          (socket as TLSSocket).once('error', rej);
-        });
-        send('EHLO bulwark');
-        await readResponse('250');
-      }
-
-      send(`AUTH PLAIN ${authPlain(smtp.user, smtp.pass)}`);
-      await readResponse('235');
-
-      send(`MAIL FROM:<${smtp.from}>`);
-      await readResponse('250');
-
-      send(`RCPT TO:<${toEmail}>`);
-      await readResponse('250');
-
-      send('DATA');
-      await readResponse('354');
-
-      const body = [
-        `From: ${escapeMime(appName)} <${smtp.from}>`,
-        `To: <${toEmail}>`,
-        `Subject: Reset your ${escapeMime(appName)} password`,
-        `MIME-Version: 1.0`,
-        `Content-Type: text/plain; charset=utf-8`,
-        ``,
-        `Hi ${username},`,
-        ``,
-        `Someone requested a password reset for your ${appName} account.`,
-        ``,
-        `Reset link (valid for 1 hour):`,
-        resetLink,
-        ``,
-        `If you did not request this, you can safely ignore this email.`,
-        ``,
-        `\u2013 The ${appName} team`,
-        `.`,
-      ].join('\r\n');
-
-      send(body);
-      await readResponse('250');
-
-      send('QUIT');
-      socket.destroy();
-      resolve();
-    }
-
-    if (smtp.secure) {
-      socket = tlsConnect({ host: smtp.host, port: smtp.port, rejectUnauthorized: true });
-      (socket as TLSSocket).once('secureConnect', () => run().catch(reject));
-    } else {
-      socket = createConnection({ host: smtp.host, port: smtp.port });
-      socket.once('connect', () => run().catch(reject));
-    }
-
-    socket.on('data', onData);
-    socket.once('error', reject);
+    });
   });
 }
