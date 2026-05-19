@@ -60,7 +60,8 @@
       "token_exchange_failed": "Failed to complete authentication. Please try again.",
       "access_denied": "Access was denied. Please contact your administrator.",
       "back_to_login": "Back to login"
-    }
+    },
+    "forgot_password": "Forgot password?"
   },
   "sidebar": {
     "close": "Close",
@@ -2929,5 +2930,29 @@
   },
   "unified_mailbox": {
     "search_unavailable": "Search is not available in the unified view"
+  },
+  "forgot_password": {
+    "title": "Reset Password",
+    "subtitle": "Enter your email address and we’ll send you a reset link.",
+    "email_label": "Email / Username",
+    "email_placeholder": "you@example.com",
+    "submit_button": "Send Reset Link",
+    "sending": "Sending…",
+    "success_message": "If an account with that address exists, a reset link has been sent. Please check your inbox.",
+    "back_to_login": "Back to Sign In",
+    "error_generic": "Something went wrong. Please try again.",
+    "reset_title": "Set New Password",
+    "reset_subtitle": "Enter your new password below.",
+    "password_label": "New Password",
+    "password_placeholder": "Minimum 8 characters",
+    "confirm_label": "Confirm Password",
+    "confirm_placeholder": "Repeat your new password",
+    "reset_button": "Reset Password",
+    "resetting": "Resetting…",
+    "reset_success": "Your password has been reset. You can now sign in.",
+    "error_password_mismatch": "Passwords do not match.",
+    "error_password_too_short": "Password must be at least 8 characters.",
+    "error_invalid_token": "This reset link is invalid or has expired.",
+    "error_missing_token": "No reset token found in this link."
   }
 }
