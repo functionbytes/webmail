@@ -159,7 +159,7 @@ export const CONFIG_ENV_MAP: Record<string, { envVar: string; fileEnvVar?: strin
   logFormat: { envVar: 'LOG_FORMAT', type: 'enum', defaultValue: 'text', enumValues: ['text', 'json'] },
   logLevel: { envVar: 'LOG_LEVEL', type: 'enum', defaultValue: 'info', enumValues: ['error', 'warn', 'info', 'debug'] },
   sessionSecret: { envVar: 'SESSION_SECRET', fileEnvVar: 'SESSION_SECRET_FILE', type: 'string', defaultValue: '' },
-  // ── Forgot-password / reset-by-email ────────────────────────────────────────
+  // ─ Forgot-password / email-reset feature ──────────────────────────────────────
   forgotPasswordEnabled: { envVar: 'FORGOT_PASSWORD_ENABLED', type: 'boolean', defaultValue: false },
   stalwartAdminApiUrl: { envVar: 'STALWART_ADMIN_API_URL', type: 'url', defaultValue: '' },
   stalwartAdminApiToken: { envVar: 'STALWART_ADMIN_API_TOKEN', fileEnvVar: 'STALWART_ADMIN_API_TOKEN_FILE', type: 'string', defaultValue: '' },
