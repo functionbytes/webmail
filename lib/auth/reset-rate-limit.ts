@@ -1,10 +1,10 @@
 /**
- * In-memory rate limiter for password-reset requests.
- * Max 5 attempts per IP per 15 minutes — mirrors lib/admin/rate-limit.ts.
+ * In-memory rate limiter for the forgot-password endpoint.
+ * 5 requests per IP per 15 minutes — mirrors the admin login limiter.
  */
 
 const MAX_ATTEMPTS = 5;
-const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const WINDOW_MS = 15 * 60 * 1000;
 
 interface RateLimitEntry {
   count: number;
@@ -13,30 +13,20 @@ interface RateLimitEntry {
 
 const attempts = new Map<string, RateLimitEntry>();
 
-// Clean up expired entries periodically
 setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of attempts) {
-    if (entry.resetAt <= now) {
-      attempts.delete(key);
-    }
+    if (entry.resetAt <= now) attempts.delete(key);
   }
 }, 60_000).unref();
 
-/**
- * Check if the IP is rate limited.
- * Returns whether the request is allowed, plus diagnostics.
- */
-export function checkResetRateLimit(ip: string): {
-  allowed: boolean;
-  remaining: number;
-  retryAfterMs: number;
-} {
+export function checkResetRateLimit(
+  ip: string,
+): { allowed: boolean; remaining: number; retryAfterMs: number } {
   const now = Date.now();
   const entry = attempts.get(ip);
 
   if (!entry || entry.resetAt <= now) {
-    // New window
     attempts.set(ip, { count: 1, resetAt: now + WINDOW_MS });
     return { allowed: true, remaining: MAX_ATTEMPTS - 1, retryAfterMs: 0 };
   }
