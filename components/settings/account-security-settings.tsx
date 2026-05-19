@@ -554,9 +554,12 @@ function RecoveryEmailSection() {
 
   useEffect(() => {
     fetch('/api/account/recovery-email')
-      .then((r) => r.json())
-      .then((d: { email?: string }) => {
-        if (d.email) { setEmail(d.email); setSaved(d.email); }
+      .then((r) => {
+        if (!r.ok) return;
+        return r.json();
+      })
+      .then((d?: { email?: string }) => {
+        if (d?.email) { setEmail(d.email); setSaved(d.email); }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -590,11 +593,16 @@ function RecoveryEmailSection() {
     setSaving(true);
     setError(null);
     try {
-      await fetch('/api/account/recovery-email', {
+      const res = await fetch('/api/account/recovery-email', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: null }),
       });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({})) as { error?: string };
+        setError(d.error ?? t('error_save'));
+        return;
+      }
       setEmail('');
       setSaved('');
       toast.success(t('clear_success'));

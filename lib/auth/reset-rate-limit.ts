@@ -4,7 +4,7 @@
  * a lightweight abuse guard, not a persistent quota).
  */
 
-const WINDOW_MS   = 15 * 60 * 1000; // 15-minute sliding window
+const WINDOW_MS   = 15 * 60 * 1000; // 15-minute fixed window
 const MAX_REQUESTS = 5;              // per IP per window
 
 interface Entry {

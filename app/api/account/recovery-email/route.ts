@@ -39,7 +39,11 @@ export async function PUT(request: NextRequest) {
 
   if (email === null || email === '' || email === undefined) {
     // Allow clearing the recovery email
-    deleteRecoveryEmail(session.username);
+    try {
+      await deleteRecoveryEmail(session.username);
+    } catch {
+      return NextResponse.json({ error: 'Failed to clear recovery email' }, { status: 500 });
+    }
     return NextResponse.json({ ok: true });
   }
 
@@ -61,7 +65,11 @@ export async function PUT(request: NextRequest) {
     );
   }
 
-  setRecoveryEmail(session.username, email);
+  try {
+    await setRecoveryEmail(session.username, email);
+  } catch {
+    return NextResponse.json({ error: 'Failed to save recovery email' }, { status: 500 });
+  }
   logger.info('Recovery email set via API', { username: session.username });
   return NextResponse.json({ ok: true });
 }

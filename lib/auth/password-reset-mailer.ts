@@ -192,6 +192,8 @@ async function cmd(
   }
 }
 
+const SMTP_TIMEOUT_MS = 15_000; // 15 s connect + per-command timeout
+
 async function smtpSend(
   cfg: SmtpConfig,
   from: string,
@@ -199,10 +201,12 @@ async function smtpSend(
   raw: string,
 ): Promise<void> {
   await new Promise<void>((resolve, reject) => {
-    const plain = net.createConnection(cfg.port, cfg.host);
+    const plain = net.createConnection({ port: cfg.port, host: cfg.host, timeout: SMTP_TIMEOUT_MS });
     plain.once('error', reject);
+    plain.once('timeout', () => { plain.destroy(); reject(new Error('SMTP connect timeout')); });
 
     plain.once('connect', async () => {
+      plain.setTimeout(SMTP_TIMEOUT_MS); // per-command timeout after connect
       try {
         const { iterable: lines, detach: detachPlain } = readLines(plain);
 

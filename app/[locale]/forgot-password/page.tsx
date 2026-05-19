@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
@@ -22,10 +22,13 @@ export default function ForgotPasswordPage() {
 
   // Guard: if the feature is disabled, redirect to login rather than showing a
   // misleading error message.
-  if (!forgotPasswordEnabled) {
-    router.replace("/login");
-    return null;
-  }
+  useEffect(() => {
+    if (forgotPasswordEnabled === false) {
+      router.replace('/login');
+    }
+  }, [forgotPasswordEnabled, router]);
+
+  if (forgotPasswordEnabled === false) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

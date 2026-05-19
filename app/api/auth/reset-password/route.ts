@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Step 3: Mark the token as used ONLY after the password update succeeded
-    markTokenUsed(token);
+    await markTokenUsed(token);
 
     logger.info('Password reset completed', { username: tokenData.username });
     return NextResponse.json({ ok: true });

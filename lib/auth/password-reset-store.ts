@@ -70,8 +70,8 @@ export type CreateResetTokenResult =
 export function createResetToken(
   username: string,
   serverUrl: string,
-): CreateResetTokenResult {
-  return withLock(() => {
+): Promise<CreateResetTokenResult> {
+  return withLock<CreateResetTokenResult>(() => {
     const now = Date.now();
     // Purge expired tokens first
     let tokens = readStore().filter((t) => now - t.createdAt < TOKEN_TTL_MS);
@@ -80,22 +80,19 @@ export function createResetToken(
 
     // Enforce minimum interval between requests
     if (active.some((t) => now - t.createdAt < MIN_REQUEST_INTERVAL_MS)) {
-      return { rateLimited: true } as CreateResetTokenResult;
+      return { rateLimited: true };
     }
 
     // Cap total active tokens per user
     if (active.length >= MAX_ACTIVE_TOKENS) {
-      return { rateLimited: true } as CreateResetTokenResult;
+      return { rateLimited: true };
     }
 
     const raw = randomBytes(32).toString('hex');
     tokens.push({ hash: hashToken(raw), username, serverUrl, createdAt: now });
     writeStore(tokens);
-    return { token: raw } as CreateResetTokenResult;
-  }) as unknown as CreateResetTokenResult;
-  // Note: withLock returns a Promise, but callers await the route handler anyway.
-  // Re-export as synchronous type to match route expectations — the actual
-  // execution is serialized via the mutex chain.
+    return { token: raw };
+  });
 }
 
 export function consumeResetToken(
@@ -124,8 +121,8 @@ export function consumeResetToken(
 }
 
 /** Mark a token as used. Call ONLY after the password update succeeds. */
-export function markTokenUsed(rawToken: string): void {
-  withLock(() => {
+export function markTokenUsed(rawToken: string): Promise<void> {
+  return withLock(() => {
     const now = Date.now();
     let tokens = readStore().filter((t) => now - t.createdAt < TOKEN_TTL_MS);
 
