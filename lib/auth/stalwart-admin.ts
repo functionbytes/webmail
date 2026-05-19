@@ -1,12 +1,11 @@
+import { logger } from '@/lib/logger';
+
 /**
- * Stalwart Management API helpers.
+ * Update a Stalwart account password via the Management API.
  *
- * Requires an admin Bearer token with permission to update principals.
- * Configure via STALWART_ADMIN_API_URL + STALWART_ADMIN_API_TOKEN env vars.
- *
- * API reference:
- *   PATCH /api/principal/{username}
- *   Body: [{ "action": "set", "field": "secret", "value": "<password>" }]
+ * Requires an admin Bearer token with `principal/set` permission.
+ * Endpoint: PATCH /api/principal/{username}
+ * Body: [{"action":"set","field":"secret","value":"<newpassword>"}]
  */
 export async function setStalwartPassword(
   adminApiUrl: string,
@@ -14,7 +13,9 @@ export async function setStalwartPassword(
   username: string,
   newPassword: string,
 ): Promise<void> {
-  const url = `${adminApiUrl.replace(/\/$/, '')}/api/principal/${encodeURIComponent(username)}`;
+  const base = adminApiUrl.replace(/\/$/, '');
+  const url = `${base}/api/principal/${encodeURIComponent(username)}`;
+
   const res = await fetch(url, {
     method: 'PATCH',
     headers: {
@@ -23,8 +24,12 @@ export async function setStalwartPassword(
     },
     body: JSON.stringify([{ action: 'set', field: 'secret', value: newPassword }]),
   });
+
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Stalwart API error ${res.status}: ${text}`);
+    const body = await res.text().catch(() => '');
+    logger.warn('Stalwart password update failed', { username, status: res.status, body });
+    throw new Error(`Stalwart API returned ${res.status}`);
   }
+
+  logger.info('Stalwart password updated via admin API', { username });
 }
