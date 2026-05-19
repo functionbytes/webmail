@@ -159,10 +159,20 @@ export const CONFIG_ENV_MAP: Record<string, { envVar: string; fileEnvVar?: strin
   logFormat: { envVar: 'LOG_FORMAT', type: 'enum', defaultValue: 'text', enumValues: ['text', 'json'] },
   logLevel: { envVar: 'LOG_LEVEL', type: 'enum', defaultValue: 'info', enumValues: ['error', 'warn', 'info', 'debug'] },
   sessionSecret: { envVar: 'SESSION_SECRET', fileEnvVar: 'SESSION_SECRET_FILE', type: 'string', defaultValue: '' },
+  forgotPasswordEnabled: { envVar: 'FORGOT_PASSWORD_ENABLED', type: 'boolean', defaultValue: false },
+  resetSmtpHost: { envVar: 'RESET_SMTP_HOST', type: 'string', defaultValue: '' },
+  resetSmtpPort: { envVar: 'RESET_SMTP_PORT', type: 'string', defaultValue: '587' },
+  resetSmtpSecure: { envVar: 'RESET_SMTP_SECURE', type: 'boolean', defaultValue: false },
+  resetSmtpUser: { envVar: 'RESET_SMTP_USER', type: 'string', defaultValue: '' },
+  resetSmtpPass: { envVar: 'RESET_SMTP_PASS', fileEnvVar: 'RESET_SMTP_PASS_FILE', type: 'string', defaultValue: '' },
+  resetFromEmail: { envVar: 'RESET_FROM_EMAIL', type: 'string', defaultValue: '' },
+  resetAppBaseUrl: { envVar: 'RESET_APP_BASE_URL', type: 'url', defaultValue: '' },
+  stalwartAdminApiUrl: { envVar: 'STALWART_ADMIN_API_URL', type: 'url', defaultValue: '' },
+  stalwartAdminApiToken: { envVar: 'STALWART_ADMIN_API_TOKEN', fileEnvVar: 'STALWART_ADMIN_API_TOKEN_FILE', type: 'string', defaultValue: '' },
 };
 
 /** Keys that should never be exposed to the client config endpoint */
-export const SENSITIVE_CONFIG_KEYS = new Set(['oauthClientSecret', 'sessionSecret']);
+export const SENSITIVE_CONFIG_KEYS = new Set(['oauthClientSecret', 'sessionSecret', 'resetSmtpPass', 'stalwartAdminApiToken']);
 
 /** Admin session cookie name */
 export const ADMIN_SESSION_COOKIE = 'admin_session';
