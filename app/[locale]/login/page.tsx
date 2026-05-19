@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { useParams, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -133,7 +133,7 @@ export default function LoginPage() {
   const isMobileHandoff = Boolean(mobileRedirectUri);
   const { login, loginDemo, isLoading, error, clearError, isAuthenticated } = useAuthStore();
   const { theme, setTheme, initializeTheme } = useThemeStore(useShallow((s) => ({ theme: s.theme, setTheme: s.setTheme, initializeTheme: s.initializeTheme })));
-  const { appName, jmapServerUrl: configuredServerUrl, oauthEnabled, oauthOnly, oauthClientId: globalOauthClientId, oauthIssuerUrl: globalOauthIssuerUrl, oauthScopes, rememberMeEnabled, devMode, demoMode, loginLogoLightUrl, loginLogoDarkUrl, loginCompanyName, loginImprintUrl, loginPrivacyPolicyUrl, loginWebsiteUrl, isLoading: configLoading, error: configError, autoSsoEnabled, embeddedMode: _embeddedMode, allowCustomJmapEndpoint, jmapServers, jmapServerAutoPickByDomain } = useConfig();
+  const { appName, jmapServerUrl: configuredServerUrl, oauthEnabled, oauthOnly, oauthClientId: globalOauthClientId, oauthIssuerUrl: globalOauthIssuerUrl, oauthScopes, rememberMeEnabled, devMode, demoMode, loginLogoLightUrl, loginLogoDarkUrl, loginCompanyName, loginImprintUrl, loginPrivacyPolicyUrl, loginWebsiteUrl, isLoading: configLoading, error: configError, autoSsoEnabled, embeddedMode: _embeddedMode, allowCustomJmapEndpoint, jmapServers, jmapServerAutoPickByDomain, forgotPasswordEnabled } = useConfig();
   const resolvedTheme = useThemeStore((s) => s.resolvedTheme);
 
   const [formData, setFormData] = useState({
@@ -1101,9 +1101,19 @@ export default function LoginPage() {
 
                   {/* Password field */}
                   <div className="space-y-1.5">
-                    <label htmlFor="password" className="block text-sm font-medium text-foreground">
-                      {t("password_label")}
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="password" className="block text-sm font-medium text-foreground">
+                        {t("password_label")}
+                      </label>
+                      {forgotPasswordEnabled && !isAddAccountMode && !demoMode && (
+                        <Link
+                          href="/forgot-password"
+                          className="text-xs text-muted-foreground/70 hover:text-foreground transition-colors"
+                        >
+                          {t("forgot_password")}
+                        </Link>
+                      )}
+                    </div>
                     <div className="relative">
                       <Input
                         id="password"
