@@ -13,6 +13,7 @@ export const ADMIN_TABS = [
   'version',
   'telemetry',
   'logs',
+  'users',
 ] as const;
 
 export type AdminTabId = typeof ADMIN_TABS[number];

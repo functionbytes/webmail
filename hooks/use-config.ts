@@ -33,6 +33,7 @@ interface ConfigData {
   jmapServerAutoPickByDomain: boolean;
   embeddedMode: boolean;
   parentOrigin: string;
+  forgotPasswordEnabled: boolean;
 }
 
 interface AppConfig extends ConfigData {
@@ -112,6 +113,7 @@ export function useConfig(): AppConfig {
     jmapServerAutoPickByDomain: configCache?.jmapServerAutoPickByDomain || false,
     embeddedMode: configCache?.embeddedMode || false,
     parentOrigin: configCache?.parentOrigin || '',
+    forgotPasswordEnabled: configCache?.forgotPasswordEnabled || false,
     isLoading: !configCache,
     error: null,
   });
@@ -147,6 +149,7 @@ export function useConfig(): AppConfig {
         jmapServerAutoPickByDomain: configCache.jmapServerAutoPickByDomain || false,
         embeddedMode: configCache.embeddedMode,
         parentOrigin: configCache.parentOrigin,
+        forgotPasswordEnabled: configCache.forgotPasswordEnabled,
         isLoading: false,
         error: null,
       });
@@ -183,6 +186,7 @@ export function useConfig(): AppConfig {
           jmapServerAutoPickByDomain: data.jmapServerAutoPickByDomain || false,
           embeddedMode: data.embeddedMode,
           parentOrigin: data.parentOrigin,
+          forgotPasswordEnabled: data.forgotPasswordEnabled,
           isLoading: false,
           error: null,
         });

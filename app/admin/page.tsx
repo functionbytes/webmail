@@ -13,6 +13,7 @@ import { MarketplaceTab } from './_tabs/marketplace';
 import { VersionTab } from './_tabs/version';
 import { TelemetryTab } from './_tabs/telemetry';
 import { LogsTab } from './_tabs/logs';
+import { UsersTab } from './_tabs/users';
 
 export default function AdminPage() {
   const activeTab = useAdminTabStore((s) => s.activeTab);
@@ -45,5 +46,6 @@ export default function AdminPage() {
     case 'version': return <VersionTab />;
     case 'telemetry': return <TelemetryTab />;
     case 'logs': return <LogsTab />;
+    case 'users': return <UsersTab />;
   }
 }

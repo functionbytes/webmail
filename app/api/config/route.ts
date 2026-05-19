@@ -57,5 +57,6 @@ export async function GET() {
     autoSsoEnabled: configManager.get<boolean>('autoSsoEnabled', false),
     embeddedMode: !!allowedFrameAncestors && allowedFrameAncestors !== "'none'",
     parentOrigin: configManager.get<string>('parentOrigin', ''),
+    forgotPasswordEnabled: configManager.get<boolean>('forgotPasswordEnabled', false),
   });
 }

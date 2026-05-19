@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import QRCode from 'qrcode';
 import * as OTPAuth from 'otpauth';
-import { Shield, Key, Smartphone, Lock, Trash2, Plus, Eye, EyeOff, Copy, Check, Loader2, Monitor, Terminal } from 'lucide-react';
+import { Shield, Key, Smartphone, Lock, Trash2, Plus, Eye, EyeOff, Copy, Check, Loader2, Monitor, Terminal, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
@@ -541,6 +541,131 @@ function CredentialSection({ icon: Icon, i18nNamespace, entries, onCreate, onRem
   );
 }
 
+
+// ─── Recovery Email Section ──────────────────────────────────────────────────
+
+function RecoveryEmailSection() {
+  const t = useTranslations('settings.security.recovery_email');
+  const [email, setEmail] = useState('');
+  const [saved, setSaved] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/account/recovery-email')
+      .then((r) => r.json())
+      .then((d: { email?: string }) => {
+        if (d.email) { setEmail(d.email); setSaved(d.email); }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSaving(true);
+    try {
+      const res = await fetch('/api/account/recovery-email', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({})) as { error?: string };
+        setError(d.error ?? t('error_save'));
+      } else {
+        setSaved(email);
+        toast.success(t('save_success'));
+      }
+    } catch {
+      setError(t('error_save'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleClear = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await fetch('/api/account/recovery-email', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: null }),
+      });
+      setEmail('');
+      setSaved('');
+      toast.success(t('clear_success'));
+    } catch {
+      setError(t('error_save'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <Mail className="w-4 h-4 text-muted-foreground" />
+        <h4 className="text-sm font-medium text-foreground">{t('title')}</h4>
+      </div>
+      <p className="text-xs text-muted-foreground mb-3">{t('description')}</p>
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          {t('loading')}
+        </div>
+      ) : (
+        <form onSubmit={handleSave} className="flex flex-col sm:flex-row gap-2">
+          <Input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder={t('placeholder')}
+            className="flex-1 h-9 text-sm"
+            autoComplete="email"
+            disabled={saving}
+          />
+          <div className="flex gap-2">
+            <Button
+              type="submit"
+              size="sm"
+              disabled={saving || !email || email === saved}
+              className="h-9"
+            >
+              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : t('save_button')}
+            </Button>
+            {saved && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={saving}
+                onClick={handleClear}
+                className="h-9"
+              >
+                {t('clear_button')}
+              </Button>
+            )}
+          </div>
+        </form>
+      )}
+
+      {error && (
+        <p className="text-xs text-destructive mt-2">{error}</p>
+      )}
+      {saved && !error && (
+        <p className="text-xs text-muted-foreground mt-2">
+          {t('current_label')}: <span className="font-medium text-foreground">{saved}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
 function AppPasswordsSection() {
   const { appPasswords, createAppPassword, removeAppPassword } = useAccountSecurityStore();
   return (
@@ -719,6 +844,12 @@ export function AccountSecuritySettings() {
               </div>
               <EncryptionSection />
             </div>
+          </>
+        )}
+        {!isOAuth && (
+          <>
+            <div className="border-t border-border" />
+            <RecoveryEmailSection />
           </>
         )}
       </div>

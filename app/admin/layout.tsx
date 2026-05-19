@@ -20,6 +20,7 @@ import {
   Mail,
   Calendar,
   BookUser,
+  Users,
   HardDrive,
   Store,
   Menu,
@@ -55,6 +56,7 @@ const NAV_GROUPS: ReadonlyArray<{
       { tab: 'branding', label: 'Branding', icon: Palette },
       { tab: 'auth', label: 'Authentication', icon: Shield },
       { tab: 'policy', label: 'Policy', icon: Scale },
+      { tab: 'users', label: 'Users', icon: Users },
     ],
   },
   {
