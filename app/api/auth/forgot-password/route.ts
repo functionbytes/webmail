@@ -5,83 +5,106 @@ import { checkResetRateLimit } from '@/lib/auth/reset-rate-limit';
 import { createResetToken } from '@/lib/auth/password-reset-store';
 import { sendPasswordResetEmail, type SmtpConfig } from '@/lib/auth/password-reset-mailer';
 
+/** Always return the same shape to prevent email enumeration. */
+const OK = NextResponse.json({ ok: true });
+
 export async function POST(request: NextRequest) {
   try {
     await configManager.ensureLoaded();
 
-    const forgotPasswordEnabled = configManager.get<boolean>('forgotPasswordEnabled', false);
-    if (!forgotPasswordEnabled) {
+    // Feature flag
+    const enabled = configManager.get<boolean>('forgotPasswordEnabled', false);
+    if (!enabled) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    // IP-based rate limiting (same pattern as admin login)
+    // IP rate-limit
     const ip =
       request.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
       request.headers.get('x-real-ip') ??
       'unknown';
     const { allowed } = checkResetRateLimit(ip);
     if (!allowed) {
-      // Return ok:true to avoid disclosing whether an account exists
-      return NextResponse.json({ ok: true });
+      logger.warn('Forgot-password rate limited', { ip });
+      // Return OK to avoid revealing that the IP is blocked
+      return OK;
     }
 
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
     const username = typeof body?.username === 'string' ? body.username.trim() : '';
     if (!username) {
       return NextResponse.json({ error: 'Missing username' }, { status: 400 });
     }
 
+    // Require SMTP + admin API to be configured before doing anything
     const smtpHost = configManager.get<string>('resetSmtpHost', '');
     const smtpUser = configManager.get<string>('resetSmtpUser', '');
     const smtpPass = configManager.get<string>('resetSmtpPass', '');
     const fromEmail = configManager.get<string>('resetFromEmail', '');
     const appBaseUrl = configManager.get<string>('resetAppBaseUrl', '');
     const stalwartApiUrl = configManager.get<string>('stalwartAdminApiUrl', '');
+    const stalwartToken = configManager.get<string>('stalwartAdminApiToken', '');
+
+    if (
+      !smtpHost ||
+      !smtpUser ||
+      !smtpPass ||
+      !fromEmail ||
+      !appBaseUrl ||
+      !stalwartApiUrl ||
+      !stalwartToken
+    ) {
+      logger.warn('Forgot-password: incomplete server configuration, request ignored', {
+        username,
+      });
+      // Return OK — the admin needs to configure the feature, but we don’t
+      // expose that to the caller.
+      return OK;
+    }
+
+    // Resolve the JMAP server URL for this user (used so the reset page can
+    // call the right server to verify the new credential afterwards).
+    const serverUrl = configManager.get<string>('jmapServerUrl', '');
+
+    const result = createResetToken(username, serverUrl);
+    if (!result) {
+      // User not found in token store — return OK (anti-enumeration)
+      return OK;
+    }
+    if ('rateLimited' in result) {
+      logger.info('Forgot-password per-user rate limited', { username });
+      return OK;
+    }
+
+    const smtpPortRaw = configManager.get<string>('resetSmtpPort', '587');
+    const smtpSecure = configManager.get<boolean>('resetSmtpSecure', false);
     const appName = configManager.get<string>('appName', 'Webmail');
 
-    if (!smtpHost || !smtpUser || !smtpPass || !fromEmail || !stalwartApiUrl) {
-      logger.warn('forgot-password: SMTP or Stalwart admin API not fully configured');
-      // Still respond ok:true — misconfiguration must not leak info
-      return NextResponse.json({ ok: true });
-    }
-
-    const serverUrl = configManager.get<string>('jmapServerUrl', '');
-    const result = await createResetToken(username, serverUrl);
-
-    // Always respond ok:true regardless of whether the account exists (anti-enumeration)
-    if (!result || 'rateLimited' in result) {
-      return NextResponse.json({ ok: true });
-    }
-
-    const baseUrl =
-      appBaseUrl ||
-      `${request.nextUrl.protocol}//${request.nextUrl.host}`;
-    const resetLink = `${baseUrl}/reset-password?token=${encodeURIComponent(result.token)}`;
+    const resetLink = `${appBaseUrl.replace(/\/$/, '')}/reset-password?token=${result.token}`;
 
     const smtp: SmtpConfig = {
       host: smtpHost,
-      port: Number(configManager.get<string>('resetSmtpPort', '587')),
-      secure: configManager.get<boolean>('resetSmtpSecure', false),
+      port: parseInt(smtpPortRaw, 10) || 587,
+      secure: smtpSecure,
       user: smtpUser,
       pass: smtpPass,
       from: fromEmail,
     };
 
-    // Derive recipient address: use username directly if it contains @,
-    // otherwise assume it is the local part and append the from-address domain.
-    const toEmail = username.includes('@')
-      ? username
-      : `${username}@${fromEmail.split('@')[1] ?? ''}`;
-
-    await sendPasswordResetEmail({ smtp, toEmail, username, resetLink, appName });
-
-    logger.info('forgot-password: reset email sent', { username });
-    return NextResponse.json({ ok: true });
-  } catch (error) {
-    logger.error('forgot-password error', {
-      error: error instanceof Error ? error.message : 'Unknown error',
+    await sendPasswordResetEmail({
+      smtp,
+      toEmail: username,
+      username,
+      resetLink,
+      appName,
     });
-    // Never leak details to the client
-    return NextResponse.json({ ok: true });
+
+    return OK;
+  } catch (error) {
+    logger.error('Forgot-password error', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    // Do not leak internals
+    return OK;
   }
 }
