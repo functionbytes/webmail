@@ -226,6 +226,7 @@ describe('JMAPClient.sendEmail threading headers', () => {
             email: 'user@example.com',
             parameters: { HOLDFOR: expect.stringMatching(/^\d+$/) },
           },
+          rcptTo: [{ email: 'recipient@example.com' }],
         },
       },
     });

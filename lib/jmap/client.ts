@@ -2242,14 +2242,16 @@ export class JMAPClient implements IJMAPClient {
     const buildSubmissionCreate = (submissionId: string): Record<string, unknown> => {
       const create: Record<string, unknown> = { emailId: `#${emailId}`, identityId: finalIdentityId };
       if (holdForSeconds || envelopeMailFrom) {
+        const envelopeRecipients = [...to, ...(cc || []), ...(bcc || [])]
+          .map((email) => email.trim())
+          .filter(Boolean)
+          .map((email) => ({ email }));
         create.envelope = {
           mailFrom: {
             email: envelopeMailFrom || fromEmail || this.username,
             ...(holdForSeconds ? { parameters: { HOLDFOR: String(holdForSeconds) } } : {}),
           },
-          ...(envelopeMailFrom
-            ? { rcptTo: [...to, ...(cc || []), ...(bcc || [])].map((email) => ({ email })) }
-            : {}),
+          rcptTo: envelopeRecipients,
         };
       }
       return { [submissionId]: create };
