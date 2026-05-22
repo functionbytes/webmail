@@ -3781,7 +3781,7 @@ export function EmailViewer({
                 )}
                 <button
                   onClick={() => setShowFullHeaders(!showFullHeaders)}
-                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-0.5 transition-colors ml-1"
+                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-0.5 transition-colors ml-1 whitespace-nowrap shrink-0"
                 >
                   {showFullHeaders ? (
                     <>
@@ -4575,7 +4575,7 @@ export function EmailViewer({
           <PluginSlot name="email-banner" extraProps={{ email }} />
 
           {/* Email Body */}
-          <div className="email-content-wrapper overflow-x-auto">
+          <div className="email-content-wrapper overflow-x-auto px-4 py-2">
             {effectiveEmailContent.isHtml ? (
               <iframe
                 ref={iframeRef}
