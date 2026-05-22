@@ -1,6 +1,6 @@
 {
   "name": "bulwark-webmail",
-  "version": "1.6.7",
+  "version": "1.7.0",
   "description": "Bulwark Webmail - a modern webmail client built for Stalwart Mail Server",
   "author": "Bulwark Webmail <bulwark@rbm.systems>",
   "license": "AGPL-3.0-only",
@@ -27,7 +27,7 @@
     "start": "next start",
     "lint": "next lint",
     "lint:fix": "next lint --fix",
-    "test:translations": "vitest run lib/__tests__/translations.test.ts",
+    "test:translations": "vitest run --no-isolate lib/__tests__/translations.test.ts",
     "prepare": "husky",
     "typecheck": "tsc --noEmit"
   },

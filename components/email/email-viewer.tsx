@@ -66,6 +66,7 @@ import {
   CalendarClock,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useRouter } from "@/i18n/navigation";
 import type { Attachment as PostalMimeAttachment } from 'postal-mime';
 import { useSettingsStore, KEYWORD_PALETTE } from "@/stores/settings-store";
 import { useUIStore } from "@/stores/ui-store";
@@ -79,6 +80,7 @@ import { EmailIdentityBadge } from "./email-identity-badge";
 import { UnsubscribeBanner } from "./unsubscribe-banner";
 import { CalendarInvitationBanner } from "./calendar-invitation-banner";
 import { useTour } from "@/components/tour/tour-provider";
+import { useIsEmbedded } from "@/hooks/use-is-embedded";
 import { SmimePassphraseDialog } from "@/components/settings/smime-passphrase-dialog";
 import { findCalendarAttachment, isCalendarMimeType } from "@/lib/calendar-invitation";
 import { RecipientPopover } from "./recipient-popover";
@@ -954,6 +956,7 @@ export function EmailViewer({
   }, [client, t, tComposer]);
   const resolvedTheme = useThemeStore((state) => state.resolvedTheme);
   const { startTour } = useTour();
+  const isEmbedded = useIsEmbedded();
   const [showFullHeaders, setShowFullHeaders] = useState(false);
   const [showAllBesideAttachments, setShowAllBesideAttachments] = useState(false);
   const [showAllMobileAttachments, setShowAllMobileAttachments] = useState(false);
@@ -1170,9 +1173,34 @@ export function EmailViewer({
   const [contactSidebarEmail, setContactSidebarEmail] = useState<string | null>(null);
   const contacts = useContactStore((s) => s.contacts);
   const { isMobile: isMobileDevice } = useDeviceDetection();
+  const router = useRouter();
 
   const handleViewContactSidebar = (contact: ContactCard | null, recipientEmail: string) => {
-    if (isMobileDevice) return; // no sidebar on mobile
+    if (isMobileDevice) {
+      // No room for a sidebar on mobile - send the user to the contacts page
+      // with params describing what to show. The `from=email` flag turns the
+      // page's mobile back button into a router.back() that returns here.
+      const allRecipients = [
+        ...(email?.from || []),
+        ...(email?.to || []),
+        ...(email?.cc || []),
+        ...(email?.bcc || []),
+        ...(email?.replyTo || []),
+      ];
+      const recipientName = allRecipients.find(
+        (r) => r.email.toLowerCase() === recipientEmail.toLowerCase()
+      )?.name;
+      const params = new URLSearchParams();
+      if (contact) {
+        params.set('contactId', contact.id);
+      } else {
+        params.set('addEmail', recipientEmail);
+        if (recipientName) params.set('addName', recipientName);
+      }
+      params.set('from', 'email');
+      router.push(`/contacts?${params.toString()}`);
+      return;
+    }
     setContactSidebarEmail(recipientEmail);
   };
 
@@ -2903,7 +2931,7 @@ export function EmailViewer({
   // window between selectedEmail changing and isLoading flipping true, so the
   // quick reply / body don't flicker through a partial render.
   // An empty bodyValues with no referenced parts means the email has no body
-  // (e.g. calendar-only invites) — not "still loading".
+  // (e.g. calendar-only invites) - not "still loading".
   const hasBodyParts = (email?.textBody?.length ?? 0) > 0 || (email?.htmlBody?.length ?? 0) > 0;
   const isBodyLoading = isLoading || (hasBodyParts && (!email?.bodyValues || Object.keys(email.bodyValues).length === 0));
 
@@ -3260,19 +3288,21 @@ export function EmailViewer({
     }
     return (
       <div className={cn("flex-1 flex flex-col items-center justify-center bg-gradient-to-br from-muted/30 to-muted/50", className)}>
-        <div className="text-center p-8">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-background shadow-lg flex items-center justify-center">
-            <Mail className="w-10 h-10 text-muted-foreground" />
+        {!isEmbedded && (
+          <div className="text-center p-8">
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-background shadow-lg flex items-center justify-center">
+              <Mail className="w-10 h-10 text-muted-foreground" />
+            </div>
+            <h3 className="text-xl font-semibold text-foreground mb-2">{t('no_conversation_selected')}</h3>
+            <p className="text-muted-foreground">{t('no_conversation_description')}</p>
+            {onCompose && (
+              <Button onClick={onCompose} className="mt-6" title={t('compose_hint')}>
+                <PenSquare className="w-4 h-4 mr-2" />
+                {t('compose')}
+              </Button>
+            )}
           </div>
-          <h3 className="text-xl font-semibold text-foreground mb-2">{t('no_conversation_selected')}</h3>
-          <p className="text-muted-foreground">{t('no_conversation_description')}</p>
-          {onCompose && (
-            <Button onClick={onCompose} className="mt-6" title={t('compose_hint')}>
-              <PenSquare className="w-4 h-4 mr-2" />
-              {t('compose')}
-            </Button>
-          )}
-        </div>
+        )}
       </div>
     );
   }

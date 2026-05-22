@@ -39,7 +39,7 @@ function encodeCallbacks(
   if (Array.isArray(value)) {
     return value.map((v) => encodeCallbacks(v, table, depth + 1));
   }
-  // Plain object — copy own enumerable keys.
+  // Plain object - copy own enumerable keys.
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
     out[k] = encodeCallbacks(v, table, depth + 1);
@@ -118,7 +118,15 @@ export class SandboxInstance {
     });
 
     this.iframe = document.createElement('iframe');
-    this.iframe.setAttribute('sandbox', 'allow-scripts');
+    // Dev-only: Next's HMR/dev runtime refuses requests from the opaque
+    // ("null") origin a strict sandbox produces, so the iframe never
+    // hydrates and `sandbox-ready` is never posted. Add allow-same-origin
+    // in dev so the iframe shares the host's origin and HMR works.
+    // Production keeps the strict opaque-origin sandbox.
+    const sandboxFlags = process.env.NODE_ENV === 'development'
+      ? 'allow-scripts allow-same-origin'
+      : 'allow-scripts';
+    this.iframe.setAttribute('sandbox', sandboxFlags);
     this.iframe.setAttribute('referrerpolicy', 'no-referrer');
     this.iframe.title = `plugin-${plugin.id}-${initPayload.mode}`;
     this.iframe.style.border = 'none';
@@ -153,7 +161,7 @@ export class SandboxInstance {
 
   private send(msg: HostToSandbox): void {
     // targetOrigin '*' is required because the iframe is opaque-origin. The
-    // payload contains no host secrets — bundle code and manifest fields the
+    // payload contains no host secrets - bundle code and manifest fields the
     // plugin already owns.
     this.iframe.contentWindow?.postMessage(msg, '*');
   }
@@ -228,6 +236,10 @@ export class SandboxInstance {
       }
 
       case 'slot-resize':
+        // The iframe has no intrinsic height - sync it to the content height
+        // the sandbox reported, otherwise the wrapper reserves space but the
+        // iframe stays at 0px and the slot appears blank.
+        this.iframe.style.height = `${msg.height}px`;
         this.slotResizeCb?.(msg.height);
         return;
     }

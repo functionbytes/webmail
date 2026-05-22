@@ -16,7 +16,7 @@
 //   5. In slot mode: look up `slots[slot].component`, render it into the
 //      iframe body, push height back via ResizeObserver.
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
 import * as ReactJSXRuntime from 'react/jsx-runtime';
@@ -54,6 +54,9 @@ let pluginExports: PluginExports | null = null;
 let mode: 'background' | 'slot' | null = null;
 let slotName: SlotName | null = null;
 let bootDone = false;
+// Guards the initial sandbox-ready post against React strict mode's double
+// useEffect invocation; the parent only needs to be pinged once per iframe.
+let readyPosted = false;
 
 const pendingApi = new Map<string, { resolve: (v: unknown) => void; reject: (err: Error) => void }>();
 const pendingCallbacks = new Map<string, { resolve: (v: unknown) => void; reject: (err: Error) => void }>();
@@ -178,7 +181,7 @@ function buildPluginApi(manifest: PluginManifest) {
 /**
  * Resolve a bundler-emitted `require(name)` call inside the sandbox. Plugin
  * bundlers should be configured to externalise React; the runtime provides
- * those modules here. Anything else is refused — the sandbox has no Node-
+ * those modules here. Anything else is refused - the sandbox has no Node-
  * compatible module resolution and we don't want plugins probing globals.
  *
  * The host injects the per-plugin API as `@plugin-host`, so plugin code can
@@ -334,7 +337,7 @@ function bootSlot(payload: SlotInit): void {
   sendToHost({ type: 'init-done', hooks: [], slots: [], shortcuts: [] });
 }
 
-// Populated by bootSlot — receives `props-update` messages.
+// Populated by bootSlot - receives `props-update` messages.
 let slotPropsUpdater: ((next: Record<string, unknown>) => void) | null = null;
 
 async function handleInit(payload: InitPayload): Promise<void> {
@@ -436,13 +439,13 @@ function handleHostMessage(ev: MessageEvent): void {
 // ─── React entry ─────────────────────────────────────────────
 
 export function SandboxRuntime(): React.JSX.Element {
-  const inited = useRef(false);
   useEffect(() => {
-    if (inited.current) return;
-    inited.current = true;
     window.addEventListener('message', handleHostMessage);
     // Initial ping. We don't know parent origin yet, so '*' is required.
-    if (window.parent && window.parent !== window) {
+    // Guard at module scope so React strict mode's double-invoke doesn't
+    // re-post (and so a re-post can't race with the parent's init reply).
+    if (!readyPosted && window.parent && window.parent !== window) {
+      readyPosted = true;
       window.parent.postMessage({ type: 'sandbox-ready' } satisfies SandboxToHost, '*');
     }
     return () => {

@@ -14,6 +14,7 @@ import { emailHooks, contactHooks } from "@/lib/plugin-hooks";
 import type { OutgoingEmail, RecipientSuggestion } from "@/lib/plugin-types";
 import { useAuthStore } from "@/stores/auth-store";
 import { useIdentityStore } from "@/stores/identity-store";
+import { useProMultiAccountIdentities, stripCrossAccountIdentityPrefix } from "@/hooks/use-pro-multi-account-identities";
 import { useAccountStore } from "@/stores/account-store";
 import { useSmimeStore } from "@/stores/smime-store";
 import { useEmailStore } from "@/stores/email-store";
@@ -34,6 +35,10 @@ import type { EmailTemplate } from "@/lib/template-types";
 import { appendPlainTextSignature, getPlainTextSignature } from "@/lib/signature-utils";
 import { resolveReplyFrom } from "@/lib/reply-identity";
 import { computeReplyThreadingHeaders } from "@/lib/email-threading";
+import {
+  rewriteCidImagesForEditor,
+  replaceInlineImagePlaceholders,
+} from "@/lib/email-composer-utils";
 import { RichTextEditor } from "@/components/email/rich-text-editor";
 import type { Editor } from "@tiptap/react";
 
@@ -75,6 +80,11 @@ interface EmailComposerProps {
     fromName?: string;
     identityId?: string;
     envelopeMailFrom?: string;
+    /** Local account ID owning the selected identity. Set when the user
+     *  picked an identity from a non-active account in the Pro multi-
+     *  account dropdown; parents should send through that account's
+     *  client instead of the currently-active one. */
+    localAccountId?: string;
     attachments?: Array<{ blobId: string; name: string; type: string; size: number; disposition?: 'attachment' | 'inline'; cid?: string }>;
     inReplyTo?: string[];
     references?: string[];
@@ -195,8 +205,18 @@ export function EmailComposer({
   const sendDelaySeconds = useSettingsStore((state) => state.sendDelaySeconds);
   const signaturePosition = useSettingsStore((state) => state.signaturePosition);
   const signatureSeparatorEnabled = useSettingsStore((state) => state.signatureSeparatorEnabled);
-  const identities = useIdentityStore((s) => s.identities);
-  const primaryIdentity = identities[0] ?? null;
+  const activeIdentities = useIdentityStore((s) => s.identities);
+  // Pro shell: surface identities from every connected account, grouped
+  // for the From dropdown's <optgroup>s. Outside Pro this collapses to
+  // the active account's identities only.
+  const multiAccountIdentities = useProMultiAccountIdentities();
+  const identities = multiAccountIdentities.enabled
+    ? multiAccountIdentities.allIdentities
+    : activeIdentities;
+  const identityGroups = multiAccountIdentities.enabled
+    ? multiAccountIdentities.groups
+    : [];
+  const primaryIdentity = activeIdentities[0] ?? null;
 
   // The signature identity used when embedding the signature into the initial
   // body for "above quote" mode. Mirrors the signatureIdentity derivation
@@ -300,7 +320,8 @@ export function EmailComposer({
     if (replyTo.quoteHeaderHtml !== undefined && (mode === 'reply' || mode === 'replyAll' || mode === 'forward')) {
       const wrap = replyTo.quoteWrapInBlockquote !== false;
       const originalHtml = replyTo.htmlBody
-        ?? (replyTo.body
+        ? rewriteCidImagesForEditor(replyTo.htmlBody)
+        : (replyTo.body
           ? replyTo.body.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')
           : '');
       const bodyHtml = wrap
@@ -314,7 +335,10 @@ export function EmailComposer({
       const quoteHeader = mode === 'forward'
         ? `---------- Forwarded message ----------<br>From: ${fromStr}<br>Date: ${date}<br>Subject: ${replyTo.subject || ''}<br><br>`
         : `On ${date}, ${fromStr} wrote:<br>`;
-      return `${prefix}${signatureBlock}<br><div>${quoteHeader}</div><blockquote style="margin:0 0 0 0.8ex;border-left:2px solid #ccc;padding-left:1ex">${replyTo.htmlBody}</blockquote>`;
+      // cid: image refs are rewritten so they render in the editor (browsers
+      // can't fetch cid: URLs); see useEffect below for the data-URL backfill.
+      const quotedHtml = rewriteCidImagesForEditor(replyTo.htmlBody);
+      return `${prefix}${signatureBlock}<br><div>${quoteHeader}</div><blockquote style="margin:0 0 0 0.8ex;border-left:2px solid #ccc;padding-left:1ex">${quotedHtml}</blockquote>`;
     }
 
     if (replyTo.body) {
@@ -410,6 +434,19 @@ export function EmailComposer({
   const currentIdentity = selectedIdentityId
     ? identities.find((identity) => identity.id === selectedIdentityId) || primaryIdentity
     : primaryIdentity;
+
+  // When the selected identity belongs to a non-active account (Pro
+  // multi-account dropdown), `currentIdentity.id` carries a "<localId>::"
+  // namespace and JMAP calls must be routed through that account's
+  // client with the un-prefixed id. `composerClient` and
+  // `currentIdentityRawId` are what save/send code should use.
+  const currentIdentityParts = currentIdentity?.id
+    ? stripCrossAccountIdentityPrefix(currentIdentity.id)
+    : { localAccountId: null, rawId: undefined };
+  const composerClient = currentIdentityParts.localAccountId
+    ? (useAuthStore.getState().getClientForAccount(currentIdentityParts.localAccountId) ?? client)
+    : client;
+  const currentIdentityRawId = currentIdentityParts.rawId ?? currentIdentity?.id;
   // Alias identities often lack a configured signature - fall back to the primary
   // identity's signature so replies (which auto-select a matching alias) still
   // populate the user's signature.
@@ -542,6 +579,76 @@ export function EmailComposer({
     replyTo?.to,
     selectedIdentityId,
   ]);
+
+  // Hydrate inline images referenced by the quoted body (issue #163).
+  // `getInitialBody` rewrites `<img src="cid:xxx">` to placeholder src +
+  // data-cid; here we (1) register each inline attachment in inlineImagesRef
+  // so the send path re-attaches the blob with the right cid, and (2) fetch
+  // each blob as a data URL and swap it into the body so the editor actually
+  // shows the image instead of a blank placeholder.
+  useEffect(() => {
+    if (plainTextMode) return;
+    if (mode !== 'reply' && mode !== 'replyAll' && mode !== 'forward') return;
+    if (!composerClient || !replyTo?.attachments?.length) return;
+
+    const inlineAtts = replyTo.attachments.filter((att) =>
+      att.cid && att.disposition === 'inline' && (att.type || '').startsWith('image/')
+    );
+    if (inlineAtts.length === 0) return;
+
+    // Seed the ref synchronously so a fast Send still attaches the right blobs
+    // even if the FileReader work below hasn't resolved yet.
+    for (const att of inlineAtts) {
+      if (!att.cid) continue;
+      if (inlineImagesRef.current.some((e) => e.cid === att.cid)) continue;
+      inlineImagesRef.current.push({
+        cid: att.cid,
+        blobId: att.blobId,
+        type: att.type,
+        name: att.name || 'inline',
+        size: att.size,
+        dataUrl: '',
+      });
+    }
+
+    let cancelled = false;
+    (async () => {
+      const updates = new Map<string, string>();
+      for (const att of inlineAtts) {
+        if (!att.cid) continue;
+        try {
+          const buffer = await composerClient.fetchBlobArrayBuffer(
+            att.blobId,
+            att.name || 'inline',
+            att.type,
+          );
+          if (cancelled) return;
+          const blob = new Blob([buffer], { type: att.type });
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(blob);
+          });
+          if (cancelled) return;
+          const entry = inlineImagesRef.current.find((e) => e.cid === att.cid);
+          if (entry) entry.dataUrl = dataUrl;
+          updates.set(att.cid, dataUrl);
+        } catch (err) {
+          debug.error('Failed to load inline image for compose', err);
+        }
+      }
+      if (cancelled || updates.size === 0) return;
+      setBody((prev) => replaceInlineImagePlaceholders(prev, updates));
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // We deliberately hydrate once per composer open - subsequent replyTo
+    // object identity churn from parent renders shouldn't refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [composerClient, plainTextMode, mode]);
 
   const composerSignatureHtml = signatureIdentity?.htmlSignature
     ? `<div>${sanitizeSignatureHtml(signatureIdentity.htmlSignature)}</div>`
@@ -944,7 +1051,7 @@ export function EmailComposer({
 
   // Auto-save draft functionality
   const saveDraftOnce = async (): Promise<string | null> => {
-    if (!client) return null;
+    if (!client || !composerClient) return null;
 
     const toAddresses = to.split(",").map(e => e.trim()).filter(Boolean);
     const ccAddresses = cc.split(",").map(e => e.trim()).filter(Boolean);
@@ -990,13 +1097,16 @@ export function EmailComposer({
 
     try {
       const previousDraftId = draftIdRef.current;
-      const savedDraftId = await client.createDraft(
+      // Use the JMAP client and raw identity id for the *owning* account
+      // - falls back to active client for single-account / same-account
+      // identities. See `composerClient` derivation above.
+      const savedDraftId = await composerClient.createDraft(
         toAddresses,
         subject || t('no_subject'),
         plainTextMode ? body : htmlToPlainText(body),
         ccAddresses,
         bccAddresses,
-        currentIdentity?.id,
+        currentIdentityRawId,
         fromEmail,
         previousDraftId || undefined,
         uploadedAttachments,
@@ -1321,6 +1431,13 @@ export function EmailComposer({
 
       // S/MIME send pipeline: build raw MIME → sign → encrypt → sendRawEmail
       if ((smimeSign_ || smimeEncrypt_) && client && currentIdentity?.id) {
+        // S/MIME keys are scoped to one JMAP account's identity - sending
+        // from a cross-account identity via S/MIME would mix accounts'
+        // certs/clients. Refuse upfront and tell the user to switch.
+        const crossAccount = stripCrossAccountIdentityPrefix(currentIdentity.id);
+        if (crossAccount.localAccountId) {
+          throw new Error('S/MIME sending from another account’s identity is not supported. Switch to that account first.');
+        }
         // 1. Resolve S/MIME key
         if (smimeSign_ && !smimeKeyRecord) {
           throw new Error('No S/MIME key bound to this identity');
@@ -1475,6 +1592,15 @@ export function EmailComposer({
         };
         const outgoing = await emailHooks.onTransformOutgoingEmail.transform(transformInput);
 
+        // Strip the cross-account namespace from the identity id before
+        // handing it to the parent - the JMAP server only knows the raw
+        // id. The owning local account travels alongside so the parent
+        // can route the send through the right client.
+        const rawIdentityId = outgoing.identityId || currentIdentity?.id;
+        const { localAccountId: identityLocalAccountId, rawId } = rawIdentityId
+          ? stripCrossAccountIdentityPrefix(rawIdentityId)
+          : { localAccountId: null, rawId: undefined };
+
         await onSend?.({
           to: outgoing.to,
           cc: outgoing.cc,
@@ -1485,8 +1611,9 @@ export function EmailComposer({
           draftId: finalDraftId || undefined,
           fromEmail,
           fromName,
-          identityId: outgoing.identityId || currentIdentity?.id,
+          identityId: rawId,
           envelopeMailFrom,
+          localAccountId: identityLocalAccountId ?? undefined,
           attachments: uploadedAttachments.length > 0 ? uploadedAttachments : undefined,
           inReplyTo: threadingHeaders?.inReplyTo,
           references: threadingHeaders?.references,
@@ -1716,16 +1843,31 @@ export function EmailComposer({
                   onChange={(e) => setSelectedIdentityId(e.target.value)}
                   className="flex-1 bg-transparent text-sm text-foreground outline-none cursor-pointer hover:text-muted-foreground transition-colors min-w-0 truncate"
                 >
-                  {identities.map((identity) => {
-                    const displayEmail = subAddressTag
-                      ? generateSubAddress(identity.email, subAddressTag, subAddressDelimiter)
-                      : identity.email;
-                    return (
-                      <option key={identity.id} value={identity.id}>
-                        {identity.name ? `${identity.name} <${displayEmail}>` : displayEmail}
-                      </option>
-                    );
-                  })}
+                  {identityGroups.length > 0
+                    ? identityGroups.map((group) => (
+                        <optgroup key={group.localAccountId} label={group.accountLabel}>
+                          {group.identities.map((identity) => {
+                            const displayEmail = subAddressTag
+                              ? generateSubAddress(identity.email, subAddressTag, subAddressDelimiter)
+                              : identity.email;
+                            return (
+                              <option key={identity.id} value={identity.id}>
+                                {identity.name ? `${identity.name} <${displayEmail}>` : displayEmail}
+                              </option>
+                            );
+                          })}
+                        </optgroup>
+                      ))
+                    : identities.map((identity) => {
+                        const displayEmail = subAddressTag
+                          ? generateSubAddress(identity.email, subAddressTag, subAddressDelimiter)
+                          : identity.email;
+                        return (
+                          <option key={identity.id} value={identity.id}>
+                            {identity.name ? `${identity.name} <${displayEmail}>` : displayEmail}
+                          </option>
+                        );
+                      })}
                 </select>
               ) : (
                 <span className="text-sm text-foreground flex-1 truncate">

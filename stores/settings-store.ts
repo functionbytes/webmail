@@ -44,6 +44,14 @@ export type CalendarHoverPreview = 'off' | 'instant' | 'delay-500ms' | 'delay-1s
 export type SendDelaySeconds = 0 | 10 | 30 | 60;
 export type ProtocolOpenMode = 'active-session' | 'new-tab';
 
+/**
+ * Settings that must never round-trip through the cross-device sync API.
+ * Decided per device and kept only in the local zustand-persist storage -
+ * a value already stored on the server (from a prior build) is ignored on
+ * import.
+ */
+const DEVICE_LOCAL_SETTING_KEYS = new Set<string>(['proInterface']);
+
 export type HoverAction = 'delete' | 'star' | 'markRead' | 'archive' | 'tag' | 'spam';
 export type HoverActionsMode = 'inline' | 'floating';
 export type HoverActionsCorner = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
@@ -516,7 +524,8 @@ export const useSettingsStore = create<SettingsState>()(
           toolbarPosition: state.toolbarPosition,
           hideAccountSwitcher: state.hideAccountSwitcher,
           showRailAccountList: state.showRailAccountList,
-          proInterface: state.proInterface,
+          // proInterface is intentionally omitted - it's a per-device choice
+          // (see DEVICE_LOCAL_SETTING_KEYS) and must not be synced.
           enableUnifiedMailbox: state.enableUnifiedMailbox,
           senderFavicons: state.senderFavicons,
           showAvatarsInJunk: state.showAvatarsInJunk,
@@ -563,6 +572,9 @@ export const useSettingsStore = create<SettingsState>()(
               }
               if (key === 'sendDelaySeconds' && ![0, 10, 30, 60].includes(settings[key])) {
                 set({ sendDelaySeconds: 0 });
+                return;
+              }
+              if (DEVICE_LOCAL_SETTING_KEYS.has(key)) {
                 return;
               }
               set({ [key]: settings[key] });
@@ -852,7 +864,7 @@ if (typeof window !== 'undefined') {
       syncWarn('Settings sync endpoint returned 404, disabling sync');
       syncEnabled = false;
     } else if (res.status === 403) {
-      // Identity mismatch — current session cookies don't match the
+      // Identity mismatch - current session cookies don't match the
       // username/serverUrl we're syncing for (common in dev mock mode where
       // no stalwart-context cookie is written, or when rememberMe is off).
       // Retrying won't help for this session; disable to stop the noise.

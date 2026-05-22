@@ -185,6 +185,12 @@ export interface Identity {
   textSignature?: string;
   htmlSignature?: string;
   mayDelete: boolean;
+  // See `Calendar.localAccountId` - set when the Pro shell aggregates
+  // identities from multiple connected accounts so we can route sends
+  // back through the owning JMAP client. `accountName` is the
+  // user-facing label for the dropdown's optgroup.
+  localAccountId?: string;
+  accountName?: string;
 }
 
 // RFC 9553 JSContact / RFC 9610 JMAP for Contacts
@@ -198,6 +204,9 @@ export interface ContactCard {
   accountId?: string;
   accountName?: string;
   isShared?: boolean;
+  // Local account-store ID - set when the Pro shell aggregates contacts
+  // from multiple connected accounts. See `Calendar.localAccountId`.
+  localAccountId?: string;
   language?: string;
   name?: ContactName;
   nicknames?: Record<string, ContactNickname>;
@@ -398,6 +407,8 @@ export interface AddressBook {
   accountId?: string;
   accountName?: string;
   isShared?: boolean;
+  // See `Calendar.localAccountId` - same purpose for address books.
+  localAccountId?: string;
 }
 
 export interface AddressBookRights {
@@ -472,6 +483,11 @@ export interface Calendar {
   accountId?: string;
   accountName?: string;
   isShared?: boolean;
+  // Local account-store ID (per JMAP server connection). Populated when the
+  // Pro shell aggregates calendars from multiple connected accounts so we
+  // can route mutations to the right client. Distinct from `accountId`
+  // which is the JMAP server's own account UUID.
+  localAccountId?: string;
 }
 
 export interface CalendarRights {
@@ -493,6 +509,8 @@ export interface CalendarEvent {
   accountId?: string;
   accountName?: string;
   isShared?: boolean;
+  // See `Calendar.localAccountId` - same purpose for events.
+  localAccountId?: string;
   isDraft: boolean;
   isOrigin: boolean;
   utcStart: string | null;

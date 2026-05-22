@@ -7,8 +7,12 @@ import {
 } from '@/lib/admin/plugin-registry';
 import JSZip from 'jszip';
 import { MAX_PLUGIN_SIZE, MAX_THEME_SIZE } from '@/lib/plugin-types';
+import { configManager } from '@/lib/admin/config-manager';
 
-const DIRECTORY_URL = process.env.EXTENSION_DIRECTORY_URL || 'https://extensions.bulwarkmail.org';
+async function getDirectoryUrl(): Promise<string> {
+  await configManager.ensureLoaded();
+  return configManager.get<string>('extensionDirectoryUrl') || 'https://extensions.bulwarkmail.org';
+}
 
 const MAX_PREVIEW_SOURCE_LEN = 100_000;
 
@@ -27,9 +31,10 @@ export async function GET(
     if ('error' in result) return result.error;
 
     const { slug } = await params;
+    const directoryUrl = await getDirectoryUrl();
 
     // 1. Extension metadata + screenshots + theme previews from the directory
-    const detailUrl = new URL(`/api/v1/extension/${encodeURIComponent(slug)}`, DIRECTORY_URL);
+    const detailUrl = new URL(`/api/v1/extension/${encodeURIComponent(slug)}`, directoryUrl);
     const detailRes = await fetch(detailUrl.toString(), {
       headers: { Accept: 'application/json' },
       signal: AbortSignal.timeout(10000),
@@ -63,7 +68,7 @@ export async function GET(
       try {
         const bundleUrl = new URL(
           `/api/v1/bundle/${encodeURIComponent(slug)}/${encodeURIComponent(latestVersion)}`,
-          DIRECTORY_URL,
+          directoryUrl,
         );
         const bundleRes = await fetch(bundleUrl.toString(), {
           signal: AbortSignal.timeout(30000),
@@ -144,14 +149,16 @@ export async function GET(
       getPluginRegistry(),
       getThemeRegistry(),
     ]);
-    const installed = type === 'theme'
-      ? themeRegistry.themes.some((t) => t.id === slug)
-      : pluginRegistry.plugins.some((p) => p.id === slug);
+    const installedEntry = type === 'theme'
+      ? themeRegistry.themes.find((t) => t.id === slug)
+      : pluginRegistry.plugins.find((p) => p.id === slug);
+    const installed = installedEntry !== undefined;
+    const installedVersion = installedEntry?.version ?? null;
 
     // 4. Build screenshot URLs (proxy through the directory's public files endpoint).
     const screenshots = Array.isArray(extension.screenshots)
       ? (extension.screenshots as Array<{ path: string; altText?: string | null }>).map((s) => ({
-          url: new URL(`/api/v1/files/${s.path}`, DIRECTORY_URL).toString(),
+          url: new URL(`/api/v1/files/${s.path}`, directoryUrl).toString(),
           altText: s.altText ?? null,
         }))
       : [];
@@ -170,7 +177,7 @@ export async function GET(
 
     const fileUrl = (path: unknown): string | null =>
       typeof path === 'string' && path
-        ? new URL(`/api/v1/files/${path}`, DIRECTORY_URL).toString()
+        ? new URL(`/api/v1/files/${path}`, directoryUrl).toString()
         : null;
 
     return NextResponse.json(
@@ -206,6 +213,7 @@ export async function GET(
           error: bundleError,
         },
         installed,
+        installedVersion,
       },
       { headers: { 'Cache-Control': 'no-store' } },
     );

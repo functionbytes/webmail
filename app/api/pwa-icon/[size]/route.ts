@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import sharp from 'sharp';
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';
+import { configManager } from '@/lib/admin/config-manager';
+import { getConfigDir } from '@/lib/admin/paths';
 
 const VALID_SIZES = new Set([192, 512]);
 
-// Cache resized images in memory to avoid reprocessing on every request
-const cache = new Map<number, Blob>();
+// Cache resized images keyed by (size, source URL) so admin re-uploads or URL
+// changes invalidate the prior render instead of serving stale bytes forever.
+const cache = new Map<string, Blob>();
 
 async function fetchSourceImage(iconUrl: string): Promise<Buffer> {
   // Absolute URL (http/https)
@@ -14,6 +17,14 @@ async function fetchSourceImage(iconUrl: string): Promise<Buffer> {
     const res = await fetch(iconUrl);
     if (!res.ok) throw new Error(`Failed to fetch PWA icon: ${res.status}`);
     return Buffer.from(await res.arrayBuffer());
+  }
+
+  // Admin-uploaded branding asset: served from /api/admin/branding/<file>
+  // but stored on disk under getConfigDir()/branding/.
+  const ADMIN_BRANDING_PREFIX = '/api/admin/branding/';
+  if (iconUrl.startsWith(ADMIN_BRANDING_PREFIX)) {
+    const filename = path.basename(iconUrl.slice(ADMIN_BRANDING_PREFIX.length));
+    return readFile(path.join(getConfigDir(), 'branding', filename));
   }
 
   // Path relative to public/ directory
@@ -32,7 +43,11 @@ export async function GET(
     return new NextResponse('Invalid size. Allowed: 192, 512', { status: 400 });
   }
 
-  const iconUrl = process.env.PWA_ICON_URL || process.env.FAVICON_URL;
+  await configManager.ensureLoaded();
+  const sources = configManager.getAllWithSources();
+  const iconUrl =
+    (sources.pwaIconUrl?.source !== 'default' ? (sources.pwaIconUrl?.value as string) : '') ||
+    (sources.faviconUrl?.source !== 'default' ? (sources.faviconUrl?.value as string) : '');
   if (!iconUrl) {
     return new NextResponse('No PWA icon configured', { status: 404 });
   }
@@ -42,9 +57,11 @@ export async function GET(
     'Cache-Control': 'public, max-age=86400',
   };
 
+  const cacheKey = `${size}|${iconUrl}`;
+
   try {
-    if (cache.has(size)) {
-      return new NextResponse(cache.get(size)!, { headers: pngHeaders });
+    if (cache.has(cacheKey)) {
+      return new NextResponse(cache.get(cacheKey)!, { headers: pngHeaders });
     }
 
     const sourceBuffer = await fetchSourceImage(iconUrl);
@@ -56,7 +73,7 @@ export async function GET(
     const ab = new ArrayBuffer(resized.byteLength);
     new Uint8Array(ab).set(resized);
     const blob = new Blob([ab], { type: 'image/png' });
-    cache.set(size, blob);
+    cache.set(cacheKey, blob);
 
     return new NextResponse(blob, { headers: pngHeaders });
   } catch (err) {
