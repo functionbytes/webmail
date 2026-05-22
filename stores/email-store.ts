@@ -2566,6 +2566,15 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
     const submissionId = email.emailSubmissionId;
     if (!submissionId) return null;
     await client.cancelEmailSubmission(submissionId);
+    if (email.isSmimeScheduled) {
+      await client.deleteEmail(email.id);
+      set(state => ({
+        selectedEmail: state.selectedEmail?.id === email.id ? null : state.selectedEmail,
+        selectedEmailIds: new Set(Array.from(state.selectedEmailIds).filter(id => id !== email.id)),
+      }));
+      await get().fetchScheduledEmails(client);
+      return null;
+    }
     const mailboxes = get().mailboxes.length > 0 ? get().mailboxes : await client.getMailboxes();
     const draftsMailbox = mailboxes.find(mb => mb.role === 'drafts');
     const sentMailbox = mailboxes.find(mb => mb.role === 'sent');

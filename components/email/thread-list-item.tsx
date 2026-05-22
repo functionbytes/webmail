@@ -335,16 +335,18 @@ const SingleEmailItem = React.forwardRef<HTMLDivElement, SingleEmailItemProps>(
         </div>
 
         {/* Hover Quick Actions */}
-        <EmailHoverActions
-          email={email}
-          backgroundClassName={resolvedColorTag ? resolvedColorTag : ((selected || isChecked) ? "bg-accent" : "bg-muted")}
-          onToggleStar={onToggleStar}
-          onMarkAsRead={onMarkAsRead}
-          onDelete={onDelete}
-          onArchive={onArchive}
-          onSetColorTag={onSetColorTag}
-          onMarkAsSpam={onMarkAsSpam}
-        />
+        {!email.isScheduled && (
+          <EmailHoverActions
+            email={email}
+            backgroundClassName={resolvedColorTag ? resolvedColorTag : ((selected || isChecked) ? "bg-accent" : "bg-muted")}
+            onToggleStar={onToggleStar}
+            onMarkAsRead={onMarkAsRead}
+            onDelete={onDelete}
+            onArchive={onArchive}
+            onSetColorTag={onSetColorTag}
+            onMarkAsSpam={onMarkAsSpam}
+          />
+        )}
       </div>
     );
   }
@@ -751,16 +753,18 @@ export const ThreadListItem = React.forwardRef<HTMLDivElement, ThreadListItemPro
           </div>
 
           {/* Hover Quick Actions for thread header */}
-          <EmailHoverActions
-            email={latestEmail}
-            backgroundClassName={colorTag ? colorTag : ((isSelected || isChecked) ? "bg-accent" : "bg-muted")}
-            onToggleStar={onToggleStar ? () => onToggleStar(latestEmail) : undefined}
-            onMarkAsRead={onMarkAsRead ? (read) => onMarkAsRead(latestEmail, read) : undefined}
-            onDelete={onDelete ? () => onDelete(latestEmail) : undefined}
-            onArchive={onArchive ? () => onArchive(latestEmail) : undefined}
-            onSetColorTag={onSetColorTag ? (color) => onSetColorTag(latestEmail.id, color) : undefined}
-            onMarkAsSpam={onMarkAsSpam ? () => onMarkAsSpam(latestEmail) : undefined}
-          />
+          {!latestEmail.isScheduled && (
+            <EmailHoverActions
+              email={latestEmail}
+              backgroundClassName={colorTag ? colorTag : ((isSelected || isChecked) ? "bg-accent" : "bg-muted")}
+              onToggleStar={onToggleStar ? () => onToggleStar(latestEmail) : undefined}
+              onMarkAsRead={onMarkAsRead ? (read) => onMarkAsRead(latestEmail, read) : undefined}
+              onDelete={onDelete ? () => onDelete(latestEmail) : undefined}
+              onArchive={onArchive ? () => onArchive(latestEmail) : undefined}
+              onSetColorTag={onSetColorTag ? (color) => onSetColorTag(latestEmail.id, color) : undefined}
+              onMarkAsSpam={onMarkAsSpam ? () => onMarkAsSpam(latestEmail) : undefined}
+            />
+          )}
         </div>
 
         {isExpanded && !isMobile && !isFocusedMailLayout && (

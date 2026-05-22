@@ -117,6 +117,30 @@ export default function Home() {
   const sendDelaySeconds = useSettingsStore((state) => state.sendDelaySeconds);
   const { loadTrustedSendersBook, trustedSendersLoaded } = useContactStore();
 
+  const promptForRescheduleDelayedUntil = useCallback((): string | null => {
+    const value = window.prompt(t('email_viewer.reschedule_prompt'));
+    if (!value) return null;
+    const time = new Date(value).getTime();
+    if (!Number.isFinite(time)) {
+      toast.error(t('email_composer.schedule_send_invalid'));
+      return null;
+    }
+    if (time <= Date.now()) {
+      toast.error(t('email_composer.schedule_send_future'));
+      return null;
+    }
+    if (!client?.hasDelayedSend()) {
+      toast.error(t('email_composer.schedule_send_unsupported'));
+      return null;
+    }
+    const maxDelayedSend = client.getMaxDelayedSend();
+    if (maxDelayedSend > 0 && time > Date.now() + maxDelayedSend * 1000) {
+      toast.error(t('email_composer.schedule_send_too_late'));
+      return null;
+    }
+    return new Date(time).toISOString();
+  }, [client, t]);
+
   // Load trusted senders address book when feature is enabled
   useEffect(() => {
     if (trustedSendersAddressBook && client && !trustedSendersLoaded) {
@@ -2720,6 +2744,12 @@ export default function Home() {
                   }
                   setShowComposer(true);
                   if (isMobile) setActiveView('viewer');
+                }}
+                onRescheduleScheduled={async (email) => {
+                  const delayedUntil = promptForRescheduleDelayedUntil();
+                  if (delayedUntil && client && email.emailSubmissionId && email.scheduledIdentityId) {
+                    await rescheduleScheduledEmail(client, email.emailSubmissionId, email.id, email.scheduledIdentityId, delayedUntil);
+                  }
                 }}
                 onEmailSelect={handleEmailSelect}
                 onEmailDoubleClick={isEmbedded ? ((email) => {

@@ -45,6 +45,7 @@ interface EmailListProps {
   onLoadMoreScheduled?: () => void;
   onCancelScheduled?: (email: Email) => void | Promise<void>;
   onCancelScheduledForEdit?: (email: Email) => void | Promise<void>;
+  onRescheduleScheduled?: (email: Email) => void | Promise<void>;
 }
 
 export function EmailList({
@@ -73,6 +74,7 @@ export function EmailList({
   onLoadMoreScheduled,
   onCancelScheduled,
   onCancelScheduledForEdit,
+  onRescheduleScheduled,
 }: EmailListProps) {
   const t = useTranslations('email_list');
   const { client } = useAuthStore();
@@ -535,9 +537,9 @@ export function EmailList({
           onMarkAsSpam={() => onMarkAsSpam?.(contextMenu.data!)}
           onUndoSpam={() => onUndoSpam?.(contextMenu.data!)}
           onEditDraft={() => onEditDraft?.(contextMenu.data!)}
-          onCancelScheduled={() => onCancelScheduled?.(contextMenu.data!)}
-          onCancelScheduledForEdit={() => onCancelScheduledForEdit?.(contextMenu.data!)}
-          onRescheduleScheduled={undefined}
+          onCancelScheduled={onCancelScheduled ? () => onCancelScheduled(contextMenu.data!) : undefined}
+          onCancelScheduledForEdit={onCancelScheduledForEdit ? () => onCancelScheduledForEdit(contextMenu.data!) : undefined}
+          onRescheduleScheduled={onRescheduleScheduled ? () => onRescheduleScheduled(contextMenu.data!) : undefined}
           onBatchMarkAsRead={(read) => client && batchMarkAsRead(client, read)}
           onBatchDelete={() => client && batchDelete(client)}
           onBatchArchive={async () => {
