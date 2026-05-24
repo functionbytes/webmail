@@ -2788,7 +2788,58 @@ export class JMAPClient implements IJMAPClient {
     }
   }
 
-  async uploadBlob(file: File): Promise<{ blobId: string; size: number; type: string }> {
+  private xhrUpload(
+    url: string,
+    file: File,
+    onProgress?: (loaded: number, total: number) => void,
+    signal?: AbortSignal,
+  ): Promise<string> {
+    return new Promise((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(new DOMException('Upload aborted', 'AbortError'));
+        return;
+      }
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url, true);
+      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+      xhr.setRequestHeader('Authorization', this.authHeader);
+      xhr.responseType = 'text';
+
+      const onAbort = () => xhr.abort();
+      if (signal) signal.addEventListener('abort', onAbort, { once: true });
+      const cleanup = () => signal?.removeEventListener('abort', onAbort);
+
+      if (onProgress) {
+        // Fire 0% immediately so the UI leaves its initial state even
+        // before the first network packet flushes.
+        onProgress(0, file.size);
+        xhr.upload.onprogress = (ev) => {
+          // ev.total is only meaningful when lengthComputable; fall back
+          // to file.size so callers always get a usable denominator.
+          const total = ev.lengthComputable ? ev.total : file.size;
+          onProgress(ev.loaded, total);
+        };
+      }
+
+      xhr.onload = () => {
+        cleanup();
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(xhr.responseText);
+        } else {
+          reject(new Error(`Failed to upload file: ${xhr.status} - ${xhr.responseText}`));
+        }
+      };
+      xhr.onerror = () => { cleanup(); reject(new Error('Upload network error')); };
+      xhr.onabort = () => { cleanup(); reject(new DOMException('Upload aborted', 'AbortError')); };
+
+      xhr.send(file);
+    });
+  }
+
+  async uploadBlob(
+    file: File,
+    opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal },
+  ): Promise<{ blobId: string; size: number; type: string }> {
     if (!this.session) {
       throw new Error('Not connected. Call connect() first.');
     }
@@ -2799,18 +2850,31 @@ export class JMAPClient implements IJMAPClient {
     }
 
     const finalUploadUrl = uploadUrl.replace('{accountId}', encodeURIComponent(this.accountId));
-    const response = await this.authenticatedFetch(finalUploadUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': file.type || 'application/octet-stream' },
-      body: file,
-    });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to upload file: ${response.status} - ${errorText}`);
+    // XHR path: fetch() does not expose upload progress events, so when the
+    // caller wants progress (or an AbortSignal) we use XMLHttpRequest. The
+    // fetch path is kept for callers that don't need either, to preserve
+    // existing 401/retry behaviour through authenticatedFetch().
+    let responseText: string;
+    if (opts?.onProgress || opts?.signal) {
+      responseText = await this.xhrUpload(
+        finalUploadUrl,
+        file,
+        opts?.onProgress,
+        opts?.signal,
+      );
+    } else {
+      const response = await this.authenticatedFetch(finalUploadUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        body: file,
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to upload file: ${response.status} - ${errorText}`);
+      }
+      responseText = await response.text();
     }
-
-    const responseText = await response.text();
     let result;
     try {
       result = JSON.parse(responseText);
