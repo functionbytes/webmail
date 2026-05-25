@@ -97,11 +97,20 @@ export function JmapServersSection({ value, source, onChange, onRevert }: Props)
   function commit(next: RowDraft[]) {
     setDrafts(next);
     const entries: JmapServerEntry[] = [];
+    let hasIncomplete = false;
+
     for (const d of next) {
       const e = draftToEntry(d);
-      if (e) entries.push(e);
+      if (e) {
+        entries.push(e);
+      } else if (d.id.trim() || d.url.trim() || d.domains.trim() || d.oauthClientId.trim() || d.oauthIssuerUrl.trim() || d.oauthClientSecret) {
+        hasIncomplete = true;
+      }
     }
-    onChange(entries);
+
+    if (!hasIncomplete) {
+      onChange(entries);
+    }
   }
 
   function update(idx: number, patch: Partial<RowDraft>) {
