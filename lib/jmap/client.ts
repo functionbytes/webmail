@@ -2836,10 +2836,23 @@ export class JMAPClient implements IJMAPClient {
     });
   }
 
+  // Signature accepts either the legacy positional accountId string OR
+  // the options bag introduced for progress / signal so existing
+  // call-sites keep compiling without touching every plugin.
   async uploadBlob(
     file: File,
-    opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal },
+    optsOrAccountId?:
+      | string
+      | {
+          accountId?: string;
+          onProgress?: (loaded: number, total: number) => void;
+          signal?: AbortSignal;
+        },
   ): Promise<{ blobId: string; size: number; type: string }> {
+    const opts =
+      typeof optsOrAccountId === 'string'
+        ? { accountId: optsOrAccountId }
+        : optsOrAccountId ?? {};
     if (!this.session) {
       throw new Error('Not connected. Call connect() first.');
     }
@@ -2849,19 +2862,20 @@ export class JMAPClient implements IJMAPClient {
       throw new Error('Upload URL not available');
     }
 
-    const finalUploadUrl = uploadUrl.replace('{accountId}', encodeURIComponent(this.accountId));
+    const targetAccountId = opts.accountId || this.accountId;
+    const finalUploadUrl = uploadUrl.replace('{accountId}', encodeURIComponent(targetAccountId));
 
     // XHR path: fetch() does not expose upload progress events, so when the
     // caller wants progress (or an AbortSignal) we use XMLHttpRequest. The
     // fetch path is kept for callers that don't need either, to preserve
     // existing 401/retry behaviour through authenticatedFetch().
     let responseText: string;
-    if (opts?.onProgress || opts?.signal) {
+    if (opts.onProgress || opts.signal) {
       responseText = await this.xhrUpload(
         finalUploadUrl,
         file,
-        opts?.onProgress,
-        opts?.signal,
+        opts.onProgress,
+        opts.signal,
       );
     } else {
       const response = await this.authenticatedFetch(finalUploadUrl, {
@@ -2892,7 +2906,7 @@ export class JMAPClient implements IJMAPClient {
     }
 
     // Nested format: { [accountId]: { blobId, type, size } }
-    const blobInfo = result[this.accountId];
+    const blobInfo = result[targetAccountId];
     if (blobInfo?.blobId) {
       return {
         blobId: blobInfo.blobId,
@@ -5366,20 +5380,29 @@ export class JMAPClient implements IJMAPClient {
     return response.arrayBuffer();
   }
 
-  /** Import a raw MIME message blob into the account. */
+  /**
+   * Import a raw MIME message blob into the account. Pass `accountId` to
+   * target a delegated account the caller has rights on (e.g. importing into
+   * a shared mailbox owned by another user). When omitted, falls back to the
+   * client's own primary account.
+   */
   async importRawEmail(
     blob: Blob,
     mailboxIds: Record<string, boolean>,
     keywords?: Record<string, boolean>,
+    accountId?: string,
   ): Promise<string> {
-    // First upload the blob
+    const targetAccountId = accountId || this.accountId;
+    // First upload the blob. Blob uploads are scoped to an account too —
+    // when importing into a delegated account, upload there so the resulting
+    // blobId is visible to Email/import on that account.
     const file = new File([blob], 'message.eml', { type: 'message/rfc822' });
-    const { blobId } = await this.uploadBlob(file);
+    const { blobId } = await this.uploadBlob(file, targetAccountId);
 
     // Then import via Email/import
     const response = await this.request([
       ['Email/import', {
-        accountId: this.accountId,
+        accountId: targetAccountId,
         emails: {
           'smime-import': {
             blobId,

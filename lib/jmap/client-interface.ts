@@ -171,7 +171,13 @@ export interface IJMAPClient {
   // ── Blobs ─────────────────────────────────────────────────────
   uploadBlob(
     file: File,
-    opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal },
+    optsOrAccountId?:
+      | string
+      | {
+          accountId?: string;
+          onProgress?: (loaded: number, total: number) => void;
+          signal?: AbortSignal;
+        },
   ): Promise<{ blobId: string; size: number; type: string }>;
   getBlobDownloadUrl(blobId: string, name?: string, type?: string): string;
   fetchBlob(blobId: string, name?: string, type?: string): Promise<Blob>;
@@ -277,7 +283,7 @@ export interface IJMAPClient {
   copyFileNode(id: string, newName: string, parentId: string | null): Promise<FileNode>;
 
   // ── S/MIME raw-email helpers ──────────────────────────────────
-  importRawEmail(blob: Blob, mailboxIds: Record<string, boolean>, keywords?: Record<string, boolean>): Promise<string>;
+  importRawEmail(blob: Blob, mailboxIds: Record<string, boolean>, keywords?: Record<string, boolean>, accountId?: string): Promise<string>;
   submitEmail(emailId: string, identityId: string): Promise<void>;
   sendRawEmail(blob: Blob, identityId: string, sentMailboxId: string, draftMailboxId?: string): Promise<void>;
 }
