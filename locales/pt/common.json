@@ -784,7 +784,7 @@
     "keep_editing": "Continuar editando",
     "tabs": {
       "appearance": "Aparência",
-      "language": "Idioma e Região",
+      "language": "Idioma, Região e Hora",
       "email": "Comportamento de E-mail",
       "composer": "Editor",
       "privacy": "Privacidade e Segurança",
@@ -876,7 +876,11 @@
       },
       "unified_mailbox": {
         "label": "Caixa de correio unificada",
-        "description": "Mostrar pastas combinadas (Entrada, Enviados, etc.) de todas as contas conectadas"
+        "description": "Mostrar pastas combinadas (Entrada, Enviados, etc.) de todas as contas conectadas",
+        "include_group": {
+          "label": "Incluir caixas de grupo",
+          "description": "Incluir também as caixas partilhadas ou de grupo na vista unificada."
+        }
       },
       "colorful_sidebar_icons": {
         "label": "Ícones coloridos na barra lateral",
@@ -960,8 +964,8 @@
       }
     },
     "language_region": {
-      "title": "Idioma e Região",
-      "description": "Configure preferências de idioma e região",
+      "title": "Idioma, Região e Hora",
+      "description": "Idioma, formato de data, formato de hora e outras preferências regionais",
       "language": {
         "label": "Idioma",
         "description": "Escolha seu idioma preferido",
@@ -970,10 +974,13 @@
       },
       "date_format": {
         "label": "Formato de Data",
-        "description": "Como as datas devem ser exibidas",
-        "regional": "Regional",
-        "iso": "ISO 8601",
-        "custom": "Personalizado"
+        "description": "Como as datas são mostradas na lista de e-mails",
+        "smart": "Inteligente (regional)",
+        "relative": "Relativo (há 1 h, há 2 d)",
+        "full": "Sempre data completa",
+        "preview_today": "Hoje:",
+        "preview_this_week": "Esta semana:",
+        "preview_older": "Mais antigo:"
       },
       "time_format": {
         "label": "Formato de Hora",

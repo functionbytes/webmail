@@ -147,11 +147,16 @@ interface EmailStore {
    * pass the active account's id explicitly (no `__default__` sentinel).
    * `destMailboxId` is the raw JMAP id on the destination server (not the
    * `accountId:mailboxId` namespace used for shared folders).
+   * `destJmapAccountId` overrides the destination client's primary account
+   * for the import — used when dropping into a delegated/shared mailbox that
+   * is owned by a different JMAP account but accessed through the same
+   * client (i.e. there is no separate connected client for the owner).
    */
   crossAccountMoveEmails: (
     emailIdsBySource: Map<string, string[]>,
     destAccountId: string,
     destMailboxId: string,
+    destJmapAccountId?: string,
   ) => Promise<void>;
   searchEmails: (client: IJMAPClient, query: string) => Promise<void>;
   advancedSearch: (client: IJMAPClient) => Promise<void>;
@@ -308,8 +313,16 @@ function resolveActionMailboxes(): Mailbox[] {
  * fresh mailbox list so the helpers can resolve the role mailbox per account.
  * Accounts whose mailbox fetch fails are skipped - the unified result will
  * surface that in its per-account error map.
+ *
+ * When `includeGroup` is true, also emits one synthetic entry per shared
+ * owner account reachable through each logged-in client. The shared entries
+ * are flagged with `isShared: true` so `lib/unified-mailbox.ts` routes JMAP
+ * requests via `originalId` + owner accountId.
  */
-async function buildUnifiedAccountClients(): Promise<UnifiedAccountClient[]> {
+export async function buildUnifiedAccountClients(
+  opts: { includeGroup?: boolean } = {},
+): Promise<UnifiedAccountClient[]> {
+  const { includeGroup = false } = opts;
   const authAccounts = useAccountStore.getState().accounts.filter((a) => a.isConnected);
   const allClients = useAuthStore.getState().getAllConnectedClients();
   const built: UnifiedAccountClient[] = [];
@@ -317,8 +330,31 @@ async function buildUnifiedAccountClients(): Promise<UnifiedAccountClient[]> {
     const c = allClients.get(a.id);
     if (!c) continue;
     try {
-      const mailboxes = await c.getMailboxes();
-      built.push({ accountId: a.id, accountLabel: a.label || a.email, client: c, mailboxes });
+      const mailboxes = includeGroup ? await c.getAllMailboxes() : await c.getMailboxes();
+      const ownMailboxes = includeGroup
+        ? mailboxes.filter((m) => !m.isShared)
+        : mailboxes;
+      built.push({ accountId: a.id, accountLabel: a.label || a.email, client: c, mailboxes: ownMailboxes, isShared: false });
+
+      if (includeGroup) {
+        const sharedByOwner = new Map<string, Mailbox[]>();
+        for (const m of mailboxes) {
+          if (!m.isShared || !m.accountId || m.accountId === a.id) continue;
+          const list = sharedByOwner.get(m.accountId) ?? [];
+          list.push(m);
+          sharedByOwner.set(m.accountId, list);
+        }
+        for (const [ownerId, ownerMailboxes] of sharedByOwner) {
+          const label = ownerMailboxes.find((m) => m.accountName)?.accountName || ownerId;
+          built.push({
+            accountId: ownerId,
+            accountLabel: label,
+            client: c,
+            mailboxes: ownerMailboxes,
+            isShared: true,
+          });
+        }
+      }
     } catch {
       /* skip account on mailbox fetch failure */
     }
@@ -662,8 +698,9 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       set({ isLoadingMore: true, error: null });
       try {
         const emailsPerPage = useSettingsStore.getState().emailsPerPage;
+        const includeGroup = useSettingsStore.getState().includeGroupInUnified;
         const position = emails.length;
-        const built = await buildUnifiedAccountClients();
+        const built = await buildUnifiedAccountClients({ includeGroup });
         const { searchFilters } = get();
         const hasFilters = !isFilterEmpty(searchFilters);
         const result = hasFilters
@@ -1194,7 +1231,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
     }
   },
 
-  crossAccountMoveEmails: async (emailIdsBySource, destAccountId, destMailboxId) => {
+  crossAccountMoveEmails: async (emailIdsBySource, destAccountId, destMailboxId, destJmapAccountId) => {
     if (emailIdsBySource.size === 0) return;
     set({ isLoading: true, error: null });
     try {
@@ -1227,7 +1264,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
             }
             const blob = await sourceClient.fetchBlob(full.blobId);
             const keywords: Record<string, boolean> = { ...(full.keywords ?? {}) };
-            await destClient.importRawEmail(blob, { [destMailboxId]: true }, keywords);
+            await destClient.importRawEmail(blob, { [destMailboxId]: true }, keywords, destJmapAccountId);
             await sourceClient.deleteEmail(emailId);
             return emailId;
           }),
@@ -1360,7 +1397,8 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       const emailsPerPage = useSettingsStore.getState().emailsPerPage;
 
       if (isUnifiedView && unifiedRole) {
-        const built = await buildUnifiedAccountClients();
+        const includeGroup = useSettingsStore.getState().includeGroupInUnified;
+        const built = await buildUnifiedAccountClients({ includeGroup });
         const result = await searchUnifiedEmails(built, unifiedRole, query, emailsPerPage, 0);
         const externals = await emailHooks.onProvideSearchResults.transform([] as ExternalSearchResult[], { query, filters: get().searchFilters });
         set({
@@ -1426,7 +1464,8 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       const emailsPerPage = useSettingsStore.getState().emailsPerPage;
 
       if (isUnifiedView && unifiedRole) {
-        const built = await buildUnifiedAccountClients();
+        const includeGroup = useSettingsStore.getState().includeGroupInUnified;
+        const built = await buildUnifiedAccountClients({ includeGroup });
         const result = await advancedSearchUnifiedEmails(
           built,
           unifiedRole,

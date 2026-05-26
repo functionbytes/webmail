@@ -784,7 +784,7 @@
     "keep_editing": "계속 수정하기",
     "tabs": {
       "appearance": "화면 설정",
-      "language": "언어 및 지역",
+      "language": "언어, 지역 및 시간",
       "email": "메일 동작",
       "composer": "메일 쓰기",
       "privacy": "개인정보 및 보안",
@@ -876,7 +876,11 @@
       },
       "unified_mailbox": {
         "label": "통합 메일함",
-        "description": "연결된 모든 계정의 통합 폴더(받은편지함, 보낸편지함 등)를 표시합니다"
+        "description": "연결된 모든 계정의 통합 폴더(받은편지함, 보낸편지함 등)를 표시합니다",
+        "include_group": {
+          "label": "그룹 받은편지함 포함",
+          "description": "공유/그룹 받은편지함도 통합 보기에 포함합니다."
+        }
       },
       "colorful_sidebar_icons": {
         "label": "컬러풀한 사이드바 아이콘",
@@ -960,8 +964,8 @@
       }
     },
     "language_region": {
-      "title": "언어 및 지역",
-      "description": "언어와 지역 형식을 설정해 주세요",
+      "title": "언어, 지역 및 시간",
+      "description": "언어, 날짜 형식, 시간 형식 및 기타 지역 환경설정",
       "language": {
         "label": "언어",
         "description": "사용할 언어를 선택해 주세요",
@@ -970,10 +974,13 @@
       },
       "date_format": {
         "label": "날짜 형식",
-        "description": "날짜가 표시되는 방식을 설정해요",
-        "regional": "지역 설정",
-        "iso": "ISO 8601",
-        "custom": "사용자 지정"
+        "description": "이메일 목록에 날짜가 표시되는 방식",
+        "smart": "스마트 (지역에 맞춤)",
+        "relative": "상대 시간 (1시간 전, 2일 전)",
+        "full": "항상 전체 날짜",
+        "preview_today": "오늘:",
+        "preview_this_week": "이번 주:",
+        "preview_older": "이전:"
       },
       "time_format": {
         "label": "시간 형식",

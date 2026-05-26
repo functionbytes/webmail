@@ -785,7 +785,7 @@
     "search_no_results": "No matching settings",
     "tabs": {
       "appearance": "Appearance",
-      "language": "Language & Region",
+      "language": "Language, Region & Time",
       "email": "Email Behavior",
       "composer": "Composer",
       "privacy": "Privacy & Security",
@@ -877,7 +877,11 @@
       },
       "unified_mailbox": {
         "label": "Unified Mailbox",
-        "description": "Show combined folders (Inbox, Sent, etc.) across all connected accounts"
+        "description": "Show combined folders (Inbox, Sent, etc.) across all connected accounts",
+        "include_group": {
+          "label": "Include group inboxes",
+          "description": "Also merge shared/group inboxes into the unified view."
+        }
       },
       "colorful_sidebar_icons": {
         "label": "Colorful Sidebar Icons",
@@ -961,8 +965,8 @@
       }
     },
     "language_region": {
-      "title": "Language & Region",
-      "description": "Configure language and regional preferences",
+      "title": "Language, Region & Time",
+      "description": "Language, date format, time format, and other regional preferences",
       "language": {
         "label": "Language",
         "description": "Choose your preferred language",
@@ -971,10 +975,13 @@
       },
       "date_format": {
         "label": "Date Format",
-        "description": "How dates should be displayed",
-        "regional": "Regional",
-        "iso": "ISO 8601",
-        "custom": "Custom"
+        "description": "How dates are shown in the email list",
+        "smart": "Smart (locale-aware)",
+        "relative": "Relative (1h ago, 2d ago)",
+        "full": "Always full date",
+        "preview_today": "Today:",
+        "preview_this_week": "This week:",
+        "preview_older": "Older:"
       },
       "time_format": {
         "label": "Time Format",

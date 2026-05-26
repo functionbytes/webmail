@@ -784,7 +784,7 @@
     "keep_editing": "Pokračovat v úpravách",
     "tabs": {
       "appearance": "Vzhled",
-      "language": "Jazyk a region",
+      "language": "Jazyk, region a čas",
       "email": "Chování e-mailu",
       "composer": "Psaní zpráv",
       "privacy": "Soukromí a bezpečnost",
@@ -876,7 +876,11 @@
       },
       "unified_mailbox": {
         "label": "Sjednocená schránka",
-        "description": "Zobrazovat sloučené složky (Doručené, Odeslané atd.) ze všech připojených účtů"
+        "description": "Zobrazovat sloučené složky (Doručené, Odeslané atd.) ze všech připojených účtů",
+        "include_group": {
+          "label": "Zahrnout skupinové schránky",
+          "description": "Zahrnout do sjednoceného zobrazení také sdílené/skupinové schránky."
+        }
       },
       "colorful_sidebar_icons": {
         "label": "Barevné ikony postranního panelu",
@@ -960,8 +964,8 @@
       }
     },
     "language_region": {
-      "title": "Jazyk a region",
-      "description": "Nakonfigurujte jazykové a místní předvolby",
+      "title": "Jazyk, region a čas",
+      "description": "Jazyk, formát data, formát času a další regionální předvolby",
       "language": {
         "label": "Jazyk",
         "description": "Vyberte preferovaný jazyk",
@@ -970,10 +974,13 @@
       },
       "date_format": {
         "label": "Formát data",
-        "description": "Jak se mají zobrazovat data",
-        "regional": "Místní",
-        "iso": "ISO 8601",
-        "custom": "Vlastní"
+        "description": "Jak se zobrazují data v seznamu e-mailů",
+        "smart": "Chytrý (regionální)",
+        "relative": "Relativní (před 1 h, před 2 d)",
+        "full": "Vždy úplné datum",
+        "preview_today": "Dnes:",
+        "preview_this_week": "Tento týden:",
+        "preview_older": "Starší:"
       },
       "time_format": {
         "label": "Formát času",

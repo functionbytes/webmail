@@ -784,7 +784,7 @@
     "keep_editing": "Weiter bearbeiten",
     "tabs": {
       "appearance": "Darstellung",
-      "language": "Sprache & Region",
+      "language": "Sprache, Region & Zeit",
       "email": "E-Mail-Verhalten",
       "composer": "Editor",
       "privacy": "Datenschutz & Sicherheit",
@@ -876,7 +876,11 @@
       },
       "unified_mailbox": {
         "label": "Gemeinsames Postfach",
-        "description": "Kombinierte Ordner (Posteingang, Gesendet usw.) für alle verbundenen Konten anzeigen"
+        "description": "Kombinierte Ordner (Posteingang, Gesendet usw.) für alle verbundenen Konten anzeigen",
+        "include_group": {
+          "label": "Gruppenpostfächer einbeziehen",
+          "description": "Gemeinsam genutzte/Gruppenpostfächer ebenfalls in die vereinheitlichte Ansicht aufnehmen."
+        }
       },
       "colorful_sidebar_icons": {
         "label": "Farbige Seitenleistensymbole",
@@ -960,8 +964,8 @@
       }
     },
     "language_region": {
-      "title": "Sprache & Region",
-      "description": "Konfigurieren Sie Sprach- und Regionaleinstellungen",
+      "title": "Sprache, Region & Zeit",
+      "description": "Sprache, Datums- und Zeitformat sowie weitere regionale Einstellungen",
       "language": {
         "label": "Sprache",
         "description": "Wählen Sie Ihre bevorzugte Sprache",
@@ -970,10 +974,13 @@
       },
       "date_format": {
         "label": "Datumsformat",
-        "description": "Wie Daten angezeigt werden sollen",
-        "regional": "Regional",
-        "iso": "ISO 8601",
-        "custom": "Benutzerdefiniert"
+        "description": "Wie Daten in der E-Mail-Liste angezeigt werden",
+        "smart": "Intelligent (gebietsschemaabhängig)",
+        "relative": "Relativ (vor 1 Std., vor 2 Tagen)",
+        "full": "Immer vollständiges Datum",
+        "preview_today": "Heute:",
+        "preview_this_week": "Diese Woche:",
+        "preview_older": "Älter:"
       },
       "time_format": {
         "label": "Zeitformat",

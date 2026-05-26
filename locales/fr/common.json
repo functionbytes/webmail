@@ -784,7 +784,7 @@
     "keep_editing": "Continuer l'édition",
     "tabs": {
       "appearance": "Apparence",
-      "language": "Langue et région",
+      "language": "Langue, région et heure",
       "email": "Comportement email",
       "composer": "Compositeur",
       "privacy": "Confidentialité et sécurité",
@@ -876,7 +876,11 @@
       },
       "unified_mailbox": {
         "label": "Boîte aux lettres unifiée",
-        "description": "Afficher les dossiers combinés (Réception, Envoyés, etc.) de tous les comptes connectés"
+        "description": "Afficher les dossiers combinés (Réception, Envoyés, etc.) de tous les comptes connectés",
+        "include_group": {
+          "label": "Inclure les boîtes de groupe",
+          "description": "Inclure également les boîtes partagées ou de groupe dans la vue unifiée."
+        }
       },
       "colorful_sidebar_icons": {
         "label": "Icônes colorées dans la barre latérale",
@@ -960,8 +964,8 @@
       }
     },
     "language_region": {
-      "title": "Langue et région",
-      "description": "Configurez vos préférences linguistiques et régionales",
+      "title": "Langue, région et heure",
+      "description": "Langue, format de date, format d'heure et autres préférences régionales",
       "language": {
         "label": "Langue",
         "description": "Choisissez votre langue préférée",
@@ -970,10 +974,13 @@
       },
       "date_format": {
         "label": "Format de date",
-        "description": "Comment les dates doivent être affichées",
-        "regional": "Régional",
-        "iso": "ISO 8601",
-        "custom": "Personnalisé"
+        "description": "Comment les dates apparaissent dans la liste des e-mails",
+        "smart": "Intelligent (adapté à la région)",
+        "relative": "Relatif (il y a 1 h, il y a 2 j)",
+        "full": "Toujours la date complète",
+        "preview_today": "Aujourd'hui :",
+        "preview_this_week": "Cette semaine :",
+        "preview_older": "Plus ancien :"
       },
       "time_format": {
         "label": "Format d'heure",

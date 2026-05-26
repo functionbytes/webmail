@@ -31,7 +31,7 @@ export type ListDensity = Density;
 export type DeleteAction = 'trash' | 'trash-and-read' | 'permanent';
 export type ReplyMode = 'reply' | 'replyAll';
 export type SignaturePosition = 'above_quote' | 'below_quote';
-export type DateFormat = 'regional' | 'iso' | 'custom';
+export type DateFormat = 'smart' | 'relative' | 'full';
 export type TimeFormat = '12h' | '24h';
 export type FirstDayOfWeek = 0 | 1; // 0 = Sunday, 1 = Monday
 export type ExternalContentPolicy = 'ask' | 'block' | 'allow';
@@ -204,6 +204,7 @@ interface SettingsState {
 
   // Unified Mailbox
   enableUnifiedMailbox: boolean;
+  includeGroupInUnified: boolean;
 
   // Email Display
   disableThreading: boolean; // Show emails as individual messages instead of grouped by conversation
@@ -301,7 +302,7 @@ const DEFAULT_SETTINGS = {
   animationsEnabled: true,
 
   // Language & Region
-  dateFormat: 'regional' as DateFormat,
+  dateFormat: 'smart' as DateFormat,
   timeFormat: '24h' as TimeFormat,
   firstDayOfWeek: 1 as FirstDayOfWeek, // Monday
 
@@ -378,6 +379,7 @@ const DEFAULT_SETTINGS = {
 
   // Unified Mailbox
   enableUnifiedMailbox: false,
+  includeGroupInUnified: false,
 
   // Email Display
   disableThreading: false,
@@ -547,6 +549,7 @@ export const useSettingsStore = create<SettingsState>()(
           // proInterface is intentionally omitted - it's a per-device choice
           // (see DEVICE_LOCAL_SETTING_KEYS) and must not be synced.
           enableUnifiedMailbox: state.enableUnifiedMailbox,
+          includeGroupInUnified: state.includeGroupInUnified,
           senderFavicons: state.senderFavicons,
           showAvatarsInJunk: state.showAvatarsInJunk,
           colorfulSidebarIcons: state.colorfulSidebarIcons,
@@ -765,7 +768,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'settings-storage',
-      version: 3,
+      version: 4,
       migrate: (persisted, version) => {
         const state = persisted as Record<string, unknown>;
         if (version < 2 && state.listDensity) {
@@ -779,6 +782,12 @@ export const useSettingsStore = create<SettingsState>()(
           state.protocolOpenMode = state.protocolMailtoOpenMode;
         }
         delete state.protocolMailtoOpenMode;
+        // v4: `dateFormat` was repurposed from 'regional'|'iso'|'custom' to
+        // 'smart'|'relative'|'full'. The old setting was never read anywhere,
+        // so every persisted value maps to the new default.
+        if (version < 4) {
+          state.dateFormat = 'smart';
+        }
         return state as unknown as SettingsState;
       },
       onRehydrateStorage: () => {

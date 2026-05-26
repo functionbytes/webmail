@@ -784,7 +784,7 @@
     "keep_editing": "編集を続ける",
     "tabs": {
       "appearance": "外観",
-      "language": "言語と地域",
+      "language": "言語、地域、時刻",
       "email": "メール動作",
       "composer": "作成",
       "privacy": "プライバシーとセキュリティ",
@@ -876,7 +876,11 @@
       },
       "unified_mailbox": {
         "label": "統合メールボックス",
-        "description": "接続されたすべてのアカウントの統合フォルダ（受信トレイ、送信済みなど）を表示"
+        "description": "接続されたすべてのアカウントの統合フォルダ（受信トレイ、送信済みなど）を表示",
+        "include_group": {
+          "label": "グループ受信トレイを含める",
+          "description": "共有/グループ受信トレイも統合ビューに含めます。"
+        }
       },
       "colorful_sidebar_icons": {
         "label": "カラフルなサイドバーアイコン",
@@ -960,8 +964,8 @@
       }
     },
     "language_region": {
-      "title": "言語と地域",
-      "description": "言語と地域の設定を構成",
+      "title": "言語、地域、時刻",
+      "description": "言語、日付形式、時刻形式、その他の地域設定",
       "language": {
         "label": "言語",
         "description": "お好みの言語を選択",
@@ -970,10 +974,13 @@
       },
       "date_format": {
         "label": "日付形式",
-        "description": "日付の表示形式",
-        "regional": "地域設定",
-        "iso": "ISO 8601",
-        "custom": "カスタム"
+        "description": "メール一覧での日付の表示方法",
+        "smart": "スマート（地域に合わせる）",
+        "relative": "相対表示（1時間前、2日前）",
+        "full": "常に完全な日付",
+        "preview_today": "今日:",
+        "preview_this_week": "今週:",
+        "preview_older": "それ以前:"
       },
       "time_format": {
         "label": "時刻形式",
