@@ -1668,6 +1668,30 @@ export function EmailComposer({
     handleSend(false, new Date(scheduleValue).toISOString());
   };
 
+  // Ctrl+Enter (Win/Linux) / Cmd+Enter (macOS) sends the open compose
+  // draft. Scoped to events whose target lives inside this composer's
+  // DOM tree — in Pro mode multiple composer tabs can be mounted at
+  // once (inactive tabs are CSS-hidden, not unmounted), so a window
+  // listener would otherwise fire every mounted composer's handleSend
+  // on a single keystroke. handleSend is rebound every render, so we
+  // route through a ref to keep the listener stable.
+  const composerRootRef = useRef<HTMLDivElement | null>(null);
+  const handleSendRef = useRef<((skipAttachmentCheck?: boolean) => Promise<void>) | undefined>(undefined);
+  handleSendRef.current = handleSend;
+  useEffect(() => {
+    const handleSendShortcut = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter') return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.altKey || e.shiftKey) return;
+      const root = composerRootRef.current;
+      if (!root || !(e.target instanceof Node) || !root.contains(e.target)) return;
+      e.preventDefault();
+      void handleSendRef.current?.();
+    };
+    window.addEventListener('keydown', handleSendShortcut);
+    return () => window.removeEventListener('keydown', handleSendShortcut);
+  }, []);
+
   const cleanClose = () => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -1749,7 +1773,7 @@ export function EmailComposer({
   };
 
   return (
-    <div className={cn("flex h-full bg-background", className)}>
+    <div ref={composerRootRef} className={cn("flex h-full bg-background", className)}>
       <PluginSlot
         name="composer-sidebar"
         className="hidden md:flex shrink-0 h-full overflow-hidden border-r border-border"
