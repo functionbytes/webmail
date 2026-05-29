@@ -1422,6 +1422,7 @@
       }
     },
     "folders": {
+      "role_memos": "Notizen",
       "title": "Ordner",
       "description": "Verwalten Sie Ihre E-Mail-Ordner und weisen Sie Standardrollen zu",
       "folder_list": "Ihre Ordner",

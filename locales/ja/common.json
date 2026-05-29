@@ -1422,6 +1422,7 @@
       }
     },
     "folders": {
+      "role_memos": "メモ",
       "title": "フォルダー",
       "description": "メールフォルダーを管理し、標準の役割を割り当てます",
       "folder_list": "フォルダー一覧",

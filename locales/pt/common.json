@@ -1422,6 +1422,7 @@
       }
     },
     "folders": {
+      "role_memos": "Notas",
       "title": "Pastas",
       "description": "Gerencie suas pastas de e-mail e atribua funções padrão",
       "folder_list": "Suas pastas",

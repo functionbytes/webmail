@@ -1422,6 +1422,7 @@
       }
     },
     "folders": {
+      "role_memos": "Notatki",
       "title": "Foldery",
       "description": "Zarządzaj folderami poczty i przypisuj standardowe role",
       "folder_list": "Twoje foldery",
