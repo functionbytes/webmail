@@ -35,6 +35,12 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
+    networks:
+      - easypanel
+
+networks:
+  easypanel:
+    external: true
 
 volumes:
   bulwark-settings:
