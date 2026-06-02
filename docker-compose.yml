@@ -7,7 +7,8 @@ services:
       - HOSTNAME=0.0.0.0 # Use "::" for IPv6
       - PORT=3000
     env_file:
-      - .env.local
+      - path: .env.local
+        required: false
     volumes:
       # Encrypted user settings (SETTINGS_DATA_DIR).
       - bulwark-settings:/app/data/settings
