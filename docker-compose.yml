@@ -36,7 +36,9 @@ services:
       start_period: 10s
     restart: unless-stopped
     networks:
-      - easypanel
+      easypanel:
+        aliases:
+          - functionbytes_webmail
 
 networks:
   easypanel:
