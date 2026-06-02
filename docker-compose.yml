@@ -35,21 +35,6 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.functionbytes-webmail.rule=Host(`functionbytes-webmail.47qtrl.easypanel.host`) || Host(`webmail.functionbytes.com`)"
-      - "traefik.http.routers.functionbytes-webmail.entrypoints=websecure"
-      - "traefik.http.routers.functionbytes-webmail.tls=true"
-      - "traefik.http.routers.functionbytes-webmail.tls.certresolver=letsencrypt"
-      - "traefik.http.services.functionbytes-webmail.loadbalancer.server.port=3000"
-    networks:
-      easypanel:
-        aliases:
-          - functionbytes_webmail
-
-networks:
-  easypanel:
-    external: true
 
 volumes:
   bulwark-settings:
