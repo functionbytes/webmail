@@ -38,7 +38,11 @@ services:
     networks:
       easypanel:
         aliases:
-          - functionbytes_webmail
+          - functionbytes_webmail_webmail
+
+networks:
+  easypanel:
+    external: true
 
 volumes:
   bulwark-settings:
